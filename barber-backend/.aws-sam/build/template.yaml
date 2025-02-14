@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: A simple serverless barber booking backend
+Globals:
+  Function:
+    Timeout: 10
+    Runtime: python3.9
+Resources:
+  MyApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+        - http://172.31.15.73:3001
+        AllowHeaders:
+        - '*'
+        AllowMethods:
+        - GET
+        - POST
+  BarberApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      CodeUri: BarberApiFunction
+      Events:
+        GetBarbers:
+          Type: HttpApi
+          Properties:
+            Path: /barbers
+            Method: GET
+            ApiId:
+              Ref: MyApi
+        GetAppointments:
+          Type: HttpApi
+          Properties:
+            Path: /appointments
+            Method: GET
+            ApiId:
+              Ref: MyApi
+        BookAppointment:
+          Type: HttpApi
+          Properties:
+            Path: /appointments/book
+            Method: POST
+            ApiId:
+              Ref: MyApi
+    Metadata:
+      SamResourceId: BarberApiFunction

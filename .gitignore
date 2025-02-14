@@ -1,0 +1,7 @@
+/.aws-sam
+/.cache
+/.npm
+/.ssh
+/.vscode-server
+/sam-installation
+sam-installation.zip
