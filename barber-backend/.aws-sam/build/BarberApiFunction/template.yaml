@@ -13,7 +13,7 @@ Resources:
     Properties:
       CorsConfiguration:
         AllowOrigins:
-          - "http://172.31.15.73:3001"
+          - "http://172.31.15.73:3001" # Private IPv4
         AllowHeaders:
           - "*"
         AllowMethods:

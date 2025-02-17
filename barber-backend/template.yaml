@@ -8,17 +8,39 @@ Globals:
     Runtime: python3.9
 
 Resources:
-  MyApi:
-    Type: AWS::Serverless::HttpApi
+  BarberApiFunction:
+    Type: AWS::Serverless::Function
     Properties:
-      CorsConfiguration:
-        AllowOrigins:
-          - "http://172.31.15.73:3001" # Private IPv4
-        AllowHeaders:
-          - "*"
-        AllowMethods:
-          - GET
-          - POST
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Events:
+        BookAppointment:
+          Type: Api
+          Properties:
+            Path: /appointments/book
+            Method: POST
+            Cors:
+              AllowOrigin: "'*'"
+              AllowMethods: "'OPTIONS,GET,POST'"
+              AllowHeaders: "'Content-Type'"
+        GetBarbers:
+          Type: Api
+          Properties:
+            Path: /barbers
+            Method: GET
+            Cors:
+              AllowOrigin: "'*'"
+              AllowMethods: "'OPTIONS,GET'"
+              AllowHeaders: "'Content-Type'"
+        GetAppointments:
+          Type: Api
+          Properties:
+            Path: /appointments
+            Method: GET
+            Cors:
+              AllowOrigin: "'*'"
+              AllowMethods: "'OPTIONS,GET'"
+              AllowHeaders: "'Content-Type'"
 
   BarberApiFunction:
     Type: AWS::Serverless::Function

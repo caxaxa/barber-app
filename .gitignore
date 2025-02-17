@@ -1,7 +1,24 @@
-/.aws-sam
-/.cache
-/.npm
-/.ssh
-/.vscode-server
-/sam-installation
-sam-installation.zip
+# Ignore system files
+.bash_history
+.profile
+.bash_logout
+.bashrc
+.sudo_as_admin_successful
+.wget-hsts
+
+# Ignore package manager folders
+node_modules/
+package-lock.json
+yarn.lock
+
+# Ignore AWS and VS Code-related folders
+.aws-sam/
+.cache/
+.npm/
+.ssh/
+.vscode-server/
+
+# Ignore any temporary files or compiled files
+*.log
+*.zip
+.DS_Store
