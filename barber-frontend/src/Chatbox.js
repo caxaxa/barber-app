@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 
 const Chatbox = ({ onNewAppointment }) => {
-  // Initial system message instructs ChatGPT on how to respond.
   const initialMessages = [
     {
       role: 'system',
       content:
-        'You are an appointment scheduling assistant for a barber shop. ' +
-        'When a user requests an appointment, reply with a JSON object containing keys: barber_id (number), date (YYYY-MM-DD), and start_time (HH:MM). ' +
-        'If no appointment is requested, respond normally.'
+        'Hoje é a data atual do calendário. Você marca consultas em uma barbearia. ' +
+        'Quando um usuário solicitar uma consulta, responda com um objeto JSON contendo as chaves: barber_id (número), date (AAAA-MM-DD) e start_time (HH:MM). ' +
+        'Use o banco de dados para verificar quem são os barbeiros e quais são os horários disponíveis. ' +
+        'Se nenhuma consulta for solicitada, responda normalmente.'
     }
   ];
 
@@ -17,10 +17,8 @@ const Chatbox = ({ onNewAppointment }) => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Sends a user message and processes the assistant's reply.
   const sendMessage = async () => {
     if (!input.trim()) return;
-
     setErrorMsg('');
     const userMessage = { role: 'user', content: input };
     const updatedMessages = [...messages, userMessage];
@@ -43,7 +41,7 @@ const Chatbox = ({ onNewAppointment }) => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        setErrorMsg(`Error from ChatGPT API: ${errorData.error?.message || 'Unknown error'}`);
+        setErrorMsg(`ChatGPT API error: ${errorData.error?.message || 'Unknown error'}`);
         console.error('ChatGPT API error:', errorData);
         setLoading(false);
         return;
@@ -54,10 +52,10 @@ const Chatbox = ({ onNewAppointment }) => {
       const newMessages = [...updatedMessages, assistantMessage];
       setMessages(newMessages);
 
-      // Parse appointment details from the assistant's reply.
+      // Attempt to parse appointment JSON from assistant's reply
       const appointmentData = parseAppointment(assistantMessage.content);
       if (appointmentData) {
-        await bookAppointment(appointmentData);
+        await onNewAppointment(appointmentData);
       }
     } catch (error) {
       console.error('Error communicating with ChatGPT:', error);
@@ -66,7 +64,6 @@ const Chatbox = ({ onNewAppointment }) => {
     setLoading(false);
   };
 
-  // Attempts to extract JSON with appointment details from text.
   const parseAppointment = (text) => {
     try {
       const jsonStart = text.indexOf('{');
@@ -85,58 +82,15 @@ const Chatbox = ({ onNewAppointment }) => {
     return null;
   };
 
-  // Calls the backend to book the appointment.
-  const bookAppointment = async (appointmentData) => {
-    try {
-      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://18.226.251.93:3000';
-      const response = await fetch(`${backendUrl}/appointments/book`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(appointmentData),
-      });
-      const result = await response.json();
-      if (response.ok) {
-        console.log('Appointment booked successfully:', result.appointment);
-        if (onNewAppointment) {
-          onNewAppointment(result.appointment);
-        }
-      } else {
-        console.error('Error booking appointment:', result.message);
-        setErrorMsg(`Booking error: ${result.message}`);
-      }
-    } catch (error) {
-      console.error('Error calling booking API:', error);
-      setErrorMsg('Error calling booking API.');
-    }
-  };
-
   const handleInputKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      sendMessage();
-    }
+    if (e.key === 'Enter') sendMessage();
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div
-        style={{
-          flexGrow: 1,
-          overflowY: 'auto',
-          border: '1px solid #ccc',
-          padding: '10px',
-          marginBottom: '10px',
-        }}
-      >
+      <div style={{ flexGrow: 1, overflowY: 'auto', border: '1px solid #ccc', padding: '10px', marginBottom: '10px' }}>
         {messages.map((msg, index) => (
-          <div
-            key={index}
-            style={{
-              margin: '5px 0',
-              textAlign: msg.role === 'user' ? 'right' : 'left',
-            }}
-          >
+          <div key={index} style={{ margin: '5px 0', textAlign: msg.role === 'user' ? 'right' : 'left' }}>
             <strong>{msg.role === 'user' ? 'You' : 'Assistant'}:</strong> {msg.content}
           </div>
         ))}

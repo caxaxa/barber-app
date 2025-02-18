@@ -1,68 +1,59 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: A simple serverless barber booking backend
-
-Globals:
-  Function:
-    Timeout: 10
-    Runtime: python3.9
+Description: Barber Appointment Scheduling Backend with DynamoDB
 
 Resources:
-  BarberApiFunction:
-    Type: AWS::Serverless::Function
+  AppointmentsTable:
+    Type: AWS::DynamoDB::Table
     Properties:
-      Handler: app.lambda_handler
-      Runtime: python3.11
-      Events:
-        BookAppointment:
-          Type: Api
-          Properties:
-            Path: /appointments/book
-            Method: POST
-            Cors:
-              AllowOrigin: "'*'"
-              AllowMethods: "'OPTIONS,GET,POST'"
-              AllowHeaders: "'Content-Type'"
-        GetBarbers:
-          Type: Api
-          Properties:
-            Path: /barbers
-            Method: GET
-            Cors:
-              AllowOrigin: "'*'"
-              AllowMethods: "'OPTIONS,GET'"
-              AllowHeaders: "'Content-Type'"
-        GetAppointments:
-          Type: Api
-          Properties:
-            Path: /appointments
-            Method: GET
-            Cors:
-              AllowOrigin: "'*'"
-              AllowMethods: "'OPTIONS,GET'"
-              AllowHeaders: "'Content-Type'"
+      TableName: Appointments
+      AttributeDefinitions:
+        - AttributeName: date
+          AttributeType: S
+        - AttributeName: start_time
+          AttributeType: S
+      KeySchema:
+        - AttributeName: date
+          KeyType: HASH
+        - AttributeName: start_time
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
 
   BarberApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: app.lambda_handler
       CodeUri: .
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Environment:
+        Variables:
+          APPOINTMENTS_TABLE: !Ref AppointmentsTable
       Events:
         GetBarbers:
-          Type: HttpApi
+          Type: Api
           Properties:
             Path: /barbers
             Method: GET
-            ApiId: !Ref MyApi
         GetAppointments:
-          Type: HttpApi
+          Type: Api
           Properties:
             Path: /appointments
             Method: GET
-            ApiId: !Ref MyApi
+        GetAllAppointments:
+          Type: Api
+          Properties:
+            Path: /appointments/all
+            Method: GET
         BookAppointment:
-          Type: HttpApi
+          Type: Api
           Properties:
             Path: /appointments/book
             Method: POST
-            ApiId: !Ref MyApi
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AppointmentsTable
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
