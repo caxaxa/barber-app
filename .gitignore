@@ -22,3 +22,5 @@ yarn.lock
 *.log
 *.zip
 .DS_Store
+.aws/credentials
+.env
