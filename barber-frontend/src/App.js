@@ -1,135 +1,213 @@
+// src/App.js
+
 import React, { useEffect, useState } from 'react';
 import { useCalendarApp, ScheduleXCalendar } from '@schedule-x/react';
-import { createViewMonthGrid, createViewWeek, createViewDay } from '@schedule-x/calendar';
+import {
+  createViewMonthGrid,
+  createViewWeek,
+  createViewDay
+} from '@schedule-x/calendar';
+
 import '@schedule-x/theme-default/dist/index.css';
 
 import Chatbox from './Chatbox';
 import AppointmentModal from './AppointmentModal';
 
+// ----------------------------------------------------------
+// 1) Helper: Convert JS Date -> "YYYY-MM-DD HH:mm"
+// ----------------------------------------------------------
+function toScheduleXString(dateObj) {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  const hh = String(dateObj.getHours()).padStart(2, '0');
+  const mm = String(dateObj.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${hh}:${mm}`;
+}
 
+// ----------------------------------------------------------
+// 2) Convert one DynamoDB "appointment" to a schedule-x event
+// e.g. appt = { date, start_time, duration, barber_id, client_name, ... }
+// ----------------------------------------------------------
+function mapAppointmentToEvent(appt) {
+  // Build start date
+  const [yyyy, MM, dd] = appt.date.split('-');
+  const [hh, mi] = appt.start_time.split(':');
 
-const App = () => {
-  // --------------------------------------------------------------------------
-  // State variables
-  // --------------------------------------------------------------------------
+  const startDate = new Date(
+    Number(yyyy),
+    Number(MM) - 1,  // 0-based month
+    Number(dd),
+    Number(hh),
+    Number(mi)
+  );
+
+  // Add duration
+  const dur = appt.duration || 40; 
+  const endDate = new Date(startDate.getTime() + dur * 60000);
+
+  // Convert to "YYYY-MM-DD HH:mm"
+  const startStr = toScheduleXString(startDate);
+  const endStr   = toScheduleXString(endDate);
+
+  // Return event object
+  return {
+    id: `apt-${appt.barber_id}-${appt.date}-${appt.start_time}`,
+    title: appt.client_name
+      ? `Barber ${appt.barber_id}: ${appt.client_name}`
+      : `Barber ${appt.barber_id}`,
+    start: startStr,
+    end: endStr,
+    color: '#0099FF',
+  };
+}
+
+function App() {
+  // ----------------------------------------------------------------
+  // React state
+  // ----------------------------------------------------------------
   const [events, setEvents] = useState([]);
-  const [selectedDateTime, setSelectedDateTime] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [bookingError, setBookingError] = useState(null);
 
-  // --------------------------------------------------------------------------
-  // Define available views (Month/Week/Day) for the built-in switcher
-  // --------------------------------------------------------------------------
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedDateTime, setSelectedDateTime] = useState(null);
+
+  // ----------------------------------------------------------------
+  // 3) Hardcoded test event
+  // ----------------------------------------------------------------
+  const testEvent = {
+    id: 1,
+    title: 'Event 1',
+    start: '2025-02-19 14:00',
+    end: '2025-02-19 17:00',
+    resourceId: '1',
+  };
+  const testEvent2 = {
+    id: 2,
+    title: 'Event 2',
+    start: '2025-02-21 13:00',
+    end: '2025-02-21 15:00',
+    resourceId: '2',
+  };
+  
+
+  // ----------------------------------------------------------------
+  // 4) Define built-in views (Month/Week/Day)
+  // ----------------------------------------------------------------
   const views = [
     createViewMonthGrid(),
     createViewWeek(),
-    createViewDay()
+    createViewDay(),
   ];
 
-  // --------------------------------------------------------------------------
-  // Create the calendar app instance (with built-in top-right controls)
-  // --------------------------------------------------------------------------
-  const calendar = useCalendarApp({
-    initialDate: new Date('2025-02-18T00:00:00'),
+  // ----------------------------------------------------------------
+  // 5) Create the schedule-x calendar instance
+  // ----------------------------------------------------------------
+  // We'll combine the single "testEvent" with our fetched "events".
+  // We'll also add some console logs at the end to compare them.
+  const finalEvents = [testEvent2, testEvent];
+
+  // PRINT the final arrays to compare
+  console.log('Hardcoded test event:', testEvent);
+  console.log('Fetched real events:', events);
+  console.log('Final array of all events (test + real):', finalEvents);
+
+  const calendarApp = useCalendarApp({
+    initialDate: '2025-02-18 08:00',
+    events: finalEvents,
     views,
-    events,
     callbacks: {
-      onClickDate(date) {
-        console.log('Clicked on date:', date);
-        setSelectedDateTime(date);
+      onClickDate(dateString) {
+        console.log('Clicked date cell:', dateString);
+        setSelectedDateTime(dateString);
         setModalVisible(true);
       },
-      onClickDateTime(dateTime) {
-        console.log('Clicked on time slot:', dateTime);
-        setSelectedDateTime(dateTime);
+      onClickDateTime(dateTimeString) {
+        console.log('Clicked time slot:', dateTimeString);
+        setSelectedDateTime(dateTimeString);
         setModalVisible(true);
       },
     },
   });
 
-  // --------------------------------------------------------------------------
-  // Function to fetch all appointments from the backend
-  // --------------------------------------------------------------------------
-  const fetchAllAppointments = async () => {
+  // ----------------------------------------------------------------
+  // 6) Fetch appointments from the backend
+  // ----------------------------------------------------------------
+  async function fetchAllAppointments() {
     try {
       setLoading(true);
       setError(null);
-      const baseUrl = process.env.REACT_APP_BACKEND_URL || '';
+
+      const baseUrl = process.env.REACT_APP_BACKEND_URL;
       if (!baseUrl) {
         throw new Error('REACT_APP_BACKEND_URL is not set in .env');
       }
-      const res = await fetch(`${baseUrl}/appointments/all`);
-      if (!res.ok) {
-        throw new Error(`GET /appointments/all failed with status ${res.status}`);
-      }
-      const data = await res.json();
-      console.log('Fetched appointments:', data.appointments);
 
-      const mappedEvents = data.appointments.map((appt) => {
-        const startDate = new Date(`${appt.date}T${appt.start_time}:00`);
-        const endDate = new Date(startDate.getTime() + (appt.duration || 40) * 60000);
-        return {
-          id: `${appt.barber_id}-${appt.date}-${appt.start_time}`,
-          title: `Appointment with Barber ${appt.barber_id}`,
-          start: startDate,
-          end: endDate,
-          color: '#0099FF',
-        };
-      });
-      console.log('Mapped events:', mappedEvents);
-      setEvents(mappedEvents);
+      const resp = await fetch(`${baseUrl}/appointments/all`);
+      if (!resp.ok) {
+        throw new Error(`GET /appointments/all failed with status ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      console.log('Fetched data:', data);
+
+      // Convert each item to schedule-x event
+      const mapped = data.appointments.map(mapAppointmentToEvent);
+      console.log('Mapped events from the server:', mapped);
+
+      setEvents(mapped);
     } catch (err) {
       console.error('Error fetching appointments:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
+  // On mount, fetch appointments
   useEffect(() => {
     fetchAllAppointments();
   }, []);
 
-  // --------------------------------------------------------------------------
-  // Function to book a new appointment (POST to backend) and update the calendar
-  // --------------------------------------------------------------------------
+  // ----------------------------------------------------------------
+  // 7) Book a new appointment
+  // ----------------------------------------------------------------
   const handleNewAppointment = async (appointmentData) => {
     setBookingError(null);
+
     try {
       console.log('Booking appointment:', appointmentData);
-      const baseUrl = process.env.REACT_APP_BACKEND_URL || '';
+
+      const baseUrl = process.env.REACT_APP_BACKEND_URL;
       if (!baseUrl) {
         throw new Error('REACT_APP_BACKEND_URL is not set in .env');
       }
-      const res = await fetch(`${baseUrl}/appointments/book`, {
+
+      const resp = await fetch(`${baseUrl}/appointments/book`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(appointmentData),
       });
-      if (!res.ok) {
-        if (res.status === 409) {
+
+      if (!resp.ok) {
+        if (resp.status === 409) {
           throw new Error('Time slot already booked. Please choose another time.');
         }
-        throw new Error(`POST /appointments/book failed with status ${res.status}`);
+        throw new Error(`POST /appointments/book failed with status ${resp.status}`);
       }
-      const data = await res.json();
-      console.log('Backend response after booking:', data);
 
-      // Optionally, update local events immediately:
-      const startDate = new Date(`${appointmentData.date}T${appointmentData.start_time}:00`);
-      const endDate = new Date(startDate.getTime() + (appointmentData.duration || 40) * 60000);
-      const newEvent = {
-        id: `${appointmentData.barber_id}-${appointmentData.date}-${appointmentData.start_time}`,
-        title: `Appointment with Barber ${appointmentData.barber_id}`,
-        start: startDate,
-        end: endDate,
-        color: '#0099FF',
-      };
+      const result = await resp.json();
+      console.log('Booking response:', result);
+
+      // Build the event object from appointmentData
+      const newEvent = mapAppointmentToEvent(appointmentData);
+
+      // Add it to local state
       setEvents((prev) => [...prev, newEvent]);
 
-      // Re-fetch appointments to ensure consistency
+      // Re-fetch to confirm with DB
       await fetchAllAppointments();
       setModalVisible(false);
     } catch (err) {
@@ -138,23 +216,27 @@ const App = () => {
     }
   };
 
-  // --------------------------------------------------------------------------
-  // Render
-  // --------------------------------------------------------------------------
+  // ----------------------------------------------------------------
+  // 8) Render
+  // ----------------------------------------------------------------
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
-      {/* Left Column: Calendar */}
+      {/* Calendar (left) */}
       <div style={{ flex: 1, padding: '20px' }}>
         {loading && <div>Loading appointments...</div>}
-        {error && <div style={{ color: 'red' }}>Error: {error}</div>}
+        {error && <div style={{ color: 'red' }}>{error}</div>}
+
         {!loading && !error && (
-          // Force a re-render of the calendar by changing the key based on events.length.
-          <ScheduleXCalendar calendarApp={calendar} key={events.length} />
+          // Force re-render if finalEvents length changes
+          <ScheduleXCalendar
+            calendarApp={calendarApp}
+            key={finalEvents.length}
+          />
         )}
       </div>
 
-      {/* Right Column: Chatbox */}
-      <div style={{ width: '300px', marginLeft: '20px' }}>
+      {/* Chatbox (right) */}
+      <div style={{ width: '300px', borderLeft: '1px solid #ccc' }}>
         <Chatbox onNewAppointment={handleNewAppointment} />
       </div>
 
@@ -167,17 +249,23 @@ const App = () => {
         />
       )}
 
-      {/* Booking Error Feedback */}
+      {/* Booking Error */}
       {bookingError && (
-        <div style={{
-          position: 'absolute', bottom: 10, left: 10,
-          backgroundColor: '#ffe6e6', padding: '8px', borderRadius: '5px'
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 10,
+            left: 10,
+            backgroundColor: '#ffe6e6',
+            padding: '8px',
+            borderRadius: '5px'
+          }}
+        >
           <strong style={{ color: 'red' }}>Booking Error:</strong> {bookingError}
         </div>
       )}
     </div>
   );
-};
+}
 
 export default App;
