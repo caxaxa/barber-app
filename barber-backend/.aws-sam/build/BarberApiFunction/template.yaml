@@ -1,24 +1,21 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Barber Appointment Scheduling Backend with DynamoDB
+Description: Barber Appointment Scheduling Backend using an external DynamoDB table
+
+Parameters:
+  AppointmentsTableName:
+    Type: String
+    Description: "Name of the pre-existing DynamoDB table for appointments"
+    Default: "Appointments"   # Change this if your table is named differently
+
+Globals:
+  Api:
+    Cors:
+      AllowOrigin: "'*'"
+      AllowMethods: "'OPTIONS,GET,POST'"
+      AllowHeaders: "'Content-Type'"
 
 Resources:
-  AppointmentsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Appointments
-      AttributeDefinitions:
-        - AttributeName: date
-          AttributeType: S
-        - AttributeName: start_time
-          AttributeType: S
-      KeySchema:
-        - AttributeName: date
-          KeyType: HASH
-        - AttributeName: start_time
-          KeyType: RANGE
-      BillingMode: PAY_PER_REQUEST
-
   BarberApiFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -27,7 +24,9 @@ Resources:
       Runtime: python3.8
       Environment:
         Variables:
-          APPOINTMENTS_TABLE: !Ref AppointmentsTable
+          APPOINTMENTS_TABLE: !Ref AppointmentsTableName
+      Policies:
+        - AmazonDynamoDBFullAccess
       Events:
         GetBarbers:
           Type: Api
@@ -49,11 +48,3 @@ Resources:
           Properties:
             Path: /appointments/book
             Method: POST
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref AppointmentsTable
-
-Outputs:
-  ApiUrl:
-    Description: "API Gateway endpoint URL"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
