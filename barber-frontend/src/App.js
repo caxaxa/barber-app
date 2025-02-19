@@ -8,7 +8,6 @@ import AppointmentModal from './AppointmentModal';
 
 
 
-
 const App = () => {
   // --------------------------------------------------------------------------
   // State variables
