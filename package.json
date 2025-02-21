@@ -1,10 +1,28 @@
 {
   "dependencies": {
+    "@devexpress/dx-core": "^4.0.10",
+    "@devexpress/dx-react-core": "^4.0.10",
+    "@devexpress/dx-react-scheduler": "^4.0.10",
+    "@devexpress/dx-react-scheduler-material-ui": "^4.0.10",
+    "@devexpress/dx-scheduler-core": "^4.0.10",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@fullcalendar/interaction": "^6.1.15",
+    "@fullcalendar/react": "^6.1.15",
+    "@fullcalendar/timegrid": "^6.1.15",
+    "@mui/icons-material": "^5.11.0",
+    "@mui/lab": "^5.0.0-alpha.117",
+    "@mui/material": "^5.11.0",
+    "@mui/x-date-pickers": "^5.0.20",
     "@schedule-x/calendar": "^2.20.0",
     "@schedule-x/drag-and-drop": "^2.12.0",
     "@schedule-x/event-modal": "^2.12.0",
     "@schedule-x/events-service": "^2.20.0",
     "@schedule-x/react": "^2.20.0",
-    "@schedule-x/theme-default": "^2.20.0"
+    "@schedule-x/theme-default": "^2.20.0",
+    "daypilot-pro-react": "^0.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwindcss": "^4.0.7"
   }
 }

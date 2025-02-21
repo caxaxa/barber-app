@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 
-const Chatbox = ({ onNewAppointment }) => {
-  const initialMessages = [
-    {
-      role: 'system',
-      content:
-        'Hoje é a data atual do calendário. Você marca consultas em uma barbearia. ' +
-        'Quando um usuário solicitar uma consulta, responda com um objeto JSON contendo as chaves: barber_id (número), date (AAAA-MM-DD) e start_time (HH:MM). ' +
-        'Use o banco de dados para verificar quem são os barbeiros e quais são os horários disponíveis. ' +
-        'Se nenhuma consulta for solicitada, responda normalmente.'
-    }
-  ];
+const Chatbox = ({ onNewAppointment, barbers = [], appointments = [] }) => {
+  // Safely build the list of barber names (or a fallback string)
+  const barberNames = barbers.length > 0 ? barbers.map(b => b.name).join(', ') : 'Nenhum barbeiro disponível';
 
-  const [messages, setMessages] = useState(initialMessages);
+  const systemMessage = {
+    role: 'system',
+    content: `Você é um assistente que gerencia as consultas de uma barbearia.
+Os barbeiros disponíveis são: ${barberNames}.
+O horário de funcionamento é das 7h às 19h.
+Quando um usuário solicitar uma consulta, responda com um objeto JSON contendo as chaves: barber_id (número), date (AAAA-MM-DD) e start_time (HH:MM).
+Utilize os dados das consultas para verificar a disponibilidade.
+Responda sempre em português.`
+  };
+
+  const [messages, setMessages] = useState([systemMessage]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -41,8 +43,8 @@ const Chatbox = ({ onNewAppointment }) => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        setErrorMsg(`ChatGPT API error: ${errorData.error?.message || 'Unknown error'}`);
-        console.error('ChatGPT API error:', errorData);
+        setErrorMsg(`Erro na API: ${errorData.error?.message || 'Erro desconhecido'}`);
+        console.error('Erro na API ChatGPT:', errorData);
         setLoading(false);
         return;
       }
@@ -52,14 +54,14 @@ const Chatbox = ({ onNewAppointment }) => {
       const newMessages = [...updatedMessages, assistantMessage];
       setMessages(newMessages);
 
-      // Attempt to parse appointment JSON from assistant's reply
+      // Tenta parsear um objeto JSON de agendamento da resposta do assistente
       const appointmentData = parseAppointment(assistantMessage.content);
       if (appointmentData) {
         await onNewAppointment(appointmentData);
       }
     } catch (error) {
-      console.error('Error communicating with ChatGPT:', error);
-      setErrorMsg('Error communicating with ChatGPT.');
+      console.error('Erro ao comunicar com ChatGPT:', error);
+      setErrorMsg('Erro ao comunicar com ChatGPT.');
     }
     setLoading(false);
   };
@@ -77,7 +79,7 @@ const Chatbox = ({ onNewAppointment }) => {
         }
       }
     } catch (error) {
-      console.error('Failed to parse appointment details:', error);
+      console.error('Falha ao parsear dados de agendamento:', error);
     }
     return null;
   };
@@ -87,27 +89,31 @@ const Chatbox = ({ onNewAppointment }) => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ flexGrow: 1, overflowY: 'auto', border: '1px solid #ccc', padding: '10px', marginBottom: '10px' }}>
+    <div className="flex flex-col h-full bg-white p-4 rounded-lg shadow">
+      <div className="flex-grow overflow-y-auto border border-gray-200 p-2 rounded mb-2">
         {messages.map((msg, index) => (
-          <div key={index} style={{ margin: '5px 0', textAlign: msg.role === 'user' ? 'right' : 'left' }}>
-            <strong>{msg.role === 'user' ? 'You' : 'Assistant'}:</strong> {msg.content}
+          <div key={index} className={`mb-2 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+            <strong>{msg.role === 'user' ? 'Você' : 'Assistente'}:</strong> {msg.content}
           </div>
         ))}
-        {errorMsg && <div style={{ color: 'red' }}>{errorMsg}</div>}
+        {errorMsg && <div className="text-red-500">{errorMsg}</div>}
       </div>
-      <div style={{ display: 'flex' }}>
+      <div className="flex">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={handleInputKeyPress}
-          style={{ flexGrow: 1, marginRight: '5px' }}
+          className="flex-grow border border-gray-300 rounded-l px-3 py-2 focus:outline-none"
           disabled={loading}
-          placeholder="Type your message..."
+          placeholder="Digite sua mensagem..."
         />
-        <button onClick={sendMessage} disabled={loading}>
-          {loading ? 'Sending...' : 'Send'}
+        <button 
+          onClick={sendMessage} 
+          disabled={loading}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r"
+        >
+          {loading ? 'Enviando...' : 'Enviar'}
         </button>
       </div>
     </div>
