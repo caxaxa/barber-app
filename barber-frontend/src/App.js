@@ -7,6 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 
 import ChatToggleButton from './ChatToggleButton';
 import FloatingChat from './FloatingChat';
+import AppointmentDialog from './AppointmentDialog';  // <-- Import your dialog
 
 const API_ENDPOINT = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3000';
 
@@ -15,7 +16,11 @@ export default function App() {
   const [barbers, setBarbers] = useState([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
-  // Example fetch for appointments
+  // State for the appointment dialog
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('');
+
+  // Fetch appointments
   const fetchAppointments = async () => {
     try {
       const res = await fetch(`${API_ENDPOINT}/appointments/all`);
@@ -28,7 +33,7 @@ export default function App() {
     }
   };
 
-  // Example fetch for barbers
+  // Fetch barbers
   const fetchBarbers = async () => {
     try {
       const res = await fetch(`${API_ENDPOINT}/barbers`);
@@ -46,10 +51,10 @@ export default function App() {
     fetchBarbers();
   }, []);
 
-  // Toggle for the chat popup
+  // Toggle for chat popup
   const toggleChat = () => setIsChatOpen(prev => !prev);
 
-  // Example function to handle new appointment (from GPT)
+  // Function to handle new appointment (from chat GPT or modal)
   const handleNewAppointment = async (appointmentData) => {
     try {
       const res = await fetch(`${API_ENDPOINT}/appointments/book`, {
@@ -70,10 +75,16 @@ export default function App() {
     }
   };
 
-  // If you store color in the barbers table, lookup the color for each appointment
+  // If barbers have a "color" field, fetch the color for each appointment
   const getColorForBarber = (barber_id) => {
     const found = barbers.find(b => b.barber_id === barber_id);
-    return found?.color || '#0099FF'; // fallback if color not found
+    return found?.color || '#0099FF';
+  };
+
+  // dateClick for FullCalendar -> open the AppointmentDialog
+  const handleDateClick = (info) => {
+    setSelectedDate(info.dateStr);  // store clicked date
+    setDialogOpen(true);            // open the modal
   };
 
   return (
@@ -107,6 +118,7 @@ export default function App() {
           };
         })}
         height="100%"
+        dateClick={handleDateClick}  // <-- important!
       />
 
       {/* Floating chat toggle button */}
@@ -117,6 +129,16 @@ export default function App() {
         open={isChatOpen}
         onClose={toggleChat}
         onNewAppointment={handleNewAppointment}
+        barbers={barbers}
+      />
+
+      {/* The modal for manual booking */}
+      <AppointmentDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        dateTime={selectedDate}
+        apiEndpoint={API_ENDPOINT}
+        refreshAppointments={fetchAppointments}
         barbers={barbers}
       />
     </Box>
