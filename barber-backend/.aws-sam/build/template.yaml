@@ -1,11 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Barber Appointment Scheduling Backend using an external DynamoDB table
+Description: Barber Appointment Scheduling Backend
 Parameters:
   AppointmentsTableName:
     Type: String
     Description: Name of the pre-existing DynamoDB table for appointments
     Default: Appointments
+  BarbersTableName:
+    Type: String
+    Description: Name of the pre-existing DynamoDB table for barbers
+    Default: Barbers
 Globals:
   Api:
     Cors:
@@ -23,6 +27,8 @@ Resources:
         Variables:
           APPOINTMENTS_TABLE:
             Ref: AppointmentsTableName
+          BARBERS_TABLE:
+            Ref: BarbersTableName
       Policies:
       - AmazonDynamoDBFullAccess
       Events:

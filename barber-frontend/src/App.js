@@ -1,96 +1,124 @@
 import React, { useState, useEffect } from 'react';
+import { Box } from '@mui/material';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import Chatbox from './Chatbox';
-import AppointmentModal from './AppointmentModal';
 
-const API_ENDPOINT = process.env.REACT_APP_BACKEND_URL;
+import ChatToggleButton from './ChatToggleButton';
+import FloatingChat from './FloatingChat';
 
-// Mapping of barber_id to color (update or expand as needed)
-const barberColors = {
-  1: "#FF5733",
-  2: "#33C4FF",
-  // Add additional mappings for other barber IDs if necessary
-};
+const API_ENDPOINT = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3000';
 
-const App = () => {
+export default function App() {
   const [appointments, setAppointments] = useState([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedDate, setSelectedDate] = useState('');
+  const [barbers, setBarbers] = useState([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
-  // Fetch appointments from the backend and map them to FullCalendar events.
+  // Example fetch for appointments
   const fetchAppointments = async () => {
     try {
       const res = await fetch(`${API_ENDPOINT}/appointments/all`);
       const data = await res.json();
       if (data?.appointments) {
-        const events = data.appointments.map(item => {
-          const start = new Date(`${item.date}T${item.start_time}`);
-          return {
-            id: `${item.date}-${item.start_time}-${item.barber_id}`,
-            title: `Appt: ${item.client_name}`,
-            start,
-            end: new Date(start.getTime() + (item.duration || 40) * 60000),
-            backgroundColor: barberColors[item.barber_id] || "#0099FF",
-            borderColor: barberColors[item.barber_id] || "#0099FF",
-            extendedProps: { barberId: item.barber_id, status: item.status }
-          };
-        });
-        setAppointments(events);
+        setAppointments(data.appointments);
       }
     } catch (error) {
       console.error('Error fetching appointments:', error);
     }
   };
 
+  // Example fetch for barbers
+  const fetchBarbers = async () => {
+    try {
+      const res = await fetch(`${API_ENDPOINT}/barbers`);
+      const data = await res.json();
+      if (data?.barbers) {
+        setBarbers(data.barbers);
+      }
+    } catch (error) {
+      console.error('Error fetching barbers:', error);
+    }
+  };
+
   useEffect(() => {
     fetchAppointments();
+    fetchBarbers();
   }, []);
 
-  // When a user clicks a date cell, capture the date and open the booking modal.
-  const handleDateClick = (info) => {
-    setSelectedDate(info.dateStr); // info.dateStr is in YYYY-MM-DD format
-    setModalVisible(true);
+  // Toggle for the chat popup
+  const toggleChat = () => setIsChatOpen(prev => !prev);
+
+  // Example function to handle new appointment (from GPT)
+  const handleNewAppointment = async (appointmentData) => {
+    try {
+      const res = await fetch(`${API_ENDPOINT}/appointments/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appointmentData),
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        alert('Error booking appointment: ' + errorData.message);
+      } else {
+        alert('Appointment booked successfully!');
+        fetchAppointments();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error booking appointment.');
+    }
+  };
+
+  // If you store color in the barbers table, lookup the color for each appointment
+  const getColorForBarber = (barber_id) => {
+    const found = barbers.find(b => b.barber_id === barber_id);
+    return found?.color || '#0099FF'; // fallback if color not found
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex">
-      {/* Calendar Section */}
-      <div className="flex-1 p-4">
-        <div className="bg-white shadow rounded-lg p-4">
-          <h1 className="text-2xl font-bold mb-4">Barber Appointments</h1>
-          <FullCalendar
-            plugins={[ dayGridPlugin, timeGridPlugin, interactionPlugin ]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay'
-            }}
-            events={appointments}
-            dateClick={handleDateClick}
-          />
-        </div>
-      </div>
-      
-      {/* Chatbox Section */}
-      <div className="w-80 border-l border-gray-300 p-4">
-        <Chatbox onOpenModal={() => setModalVisible(true)} />
-      </div>
-      
-      {/* Appointment Modal */}
-      {modalVisible && (
-        <AppointmentModal
-          dateTime={selectedDate}
-          onClose={() => setModalVisible(false)}
-          apiEndpoint={API_ENDPOINT}
-          refreshAppointments={fetchAppointments}
-        />
-      )}
-    </div>
-  );
-};
+    <Box
+      sx={{
+        width: '100vw',
+        height: '100vh',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Full screen calendar */}
+      <FullCalendar
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        initialView="dayGridMonth"
+        headerToolbar={{
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,timeGridWeek,timeGridDay',
+        }}
+        events={appointments.map((item) => {
+          const start = new Date(`${item.date}T${item.start_time}`);
+          const color = getColorForBarber(item.barber_id);
+          return {
+            id: `${item.date}-${item.start_time}-${item.barber_id}`,
+            title: item.client_name,
+            start,
+            end: new Date(start.getTime() + (item.duration || 40) * 60000),
+            backgroundColor: color,
+            borderColor: color,
+          };
+        })}
+        height="100%"
+      />
 
-export default App;
+      {/* Floating chat toggle button */}
+      <ChatToggleButton onClick={toggleChat} />
+
+      {/* Popup chat window */}
+      <FloatingChat
+        open={isChatOpen}
+        onClose={toggleChat}
+        onNewAppointment={handleNewAppointment}
+        barbers={barbers}
+      />
+    </Box>
+  );
+}

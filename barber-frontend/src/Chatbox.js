@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
 
-const Chatbox = ({ onNewAppointment, barbers = [], appointments = [] }) => {
-  // Safely build the list of barber names (or a fallback string)
-  const barberNames = barbers.length > 0 ? barbers.map(b => b.name).join(', ') : 'Nenhum barbeiro disponível';
+// Example chat code. If you're using @mui/material, you can style it with
+// components or just keep your existing logic. 
+export default function Chatbox({ onNewAppointment, barbers = [] }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
+  const barberNames = barbers.length > 0
+    ? barbers.map((b) => b.name).join(', ')
+    : 'Nenhum barbeiro disponível';
 
   const systemMessage = {
     role: 'system',
@@ -13,15 +20,14 @@ Quando um usuário solicitar uma consulta, responda com um objeto JSON contendo 
 Utilize os dados das consultas para verificar a disponibilidade.
 Responda sempre em português.`
   };
-
-  const [messages, setMessages] = useState([systemMessage]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  if (messages.length === 0) {
+    setMessages([systemMessage]);
+  }
 
   const sendMessage = async () => {
     if (!input.trim()) return;
     setErrorMsg('');
+
     const userMessage = { role: 'user', content: input };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
@@ -29,6 +35,7 @@ Responda sempre em português.`
     setLoading(true);
 
     try {
+      // Example GPT call
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -54,7 +61,7 @@ Responda sempre em português.`
       const newMessages = [...updatedMessages, assistantMessage];
       setMessages(newMessages);
 
-      // Tenta parsear um objeto JSON de agendamento da resposta do assistente
+      // Attempt to parse an appointment
       const appointmentData = parseAppointment(assistantMessage.content);
       if (appointmentData) {
         await onNewAppointment(appointmentData);
@@ -74,50 +81,50 @@ Responda sempre em português.`
         const jsonString = text.substring(jsonStart, jsonEnd + 1);
         const data = JSON.parse(jsonString);
         if (data.barber_id && data.date && data.start_time) {
-          console.log('Parsed appointment data:', data);
           return data;
         }
       }
     } catch (error) {
-      console.error('Falha ao parsear dados de agendamento:', error);
+      console.error('Failed to parse JSON appointment:', error);
     }
     return null;
   };
 
-  const handleInputKeyPress = (e) => {
-    if (e.key === 'Enter') sendMessage();
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
   };
 
+  // For the UI, filter out system messages
+  const visibleMessages = messages.filter(msg => msg.role !== 'system');
+
   return (
-    <div className="flex flex-col h-full bg-white p-4 rounded-lg shadow">
-      <div className="flex-grow overflow-y-auto border border-gray-200 p-2 rounded mb-2">
-        {messages.map((msg, index) => (
-          <div key={index} className={`mb-2 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Chat display */}
+      <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #ccc', padding: '8px' }}>
+        {visibleMessages.map((msg, i) => (
+          <div key={i} style={{ marginBottom: '8px', textAlign: msg.role === 'user' ? 'right' : 'left' }}>
             <strong>{msg.role === 'user' ? 'Você' : 'Assistente'}:</strong> {msg.content}
           </div>
         ))}
-        {errorMsg && <div className="text-red-500">{errorMsg}</div>}
+        {errorMsg && <div style={{ color: 'red' }}>{errorMsg}</div>}
       </div>
-      <div className="flex">
+
+      {/* Input + Send button */}
+      <div style={{ display: 'flex', marginTop: '8px' }}>
         <input
-          type="text"
+          style={{ flex: 1, padding: '8px' }}
+          placeholder="Digite sua mensagem..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleInputKeyPress}
-          className="flex-grow border border-gray-300 rounded-l px-3 py-2 focus:outline-none"
+          onKeyPress={handleKeyPress}
           disabled={loading}
-          placeholder="Digite sua mensagem..."
         />
-        <button 
-          onClick={sendMessage} 
-          disabled={loading}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r"
-        >
+        <button onClick={sendMessage} disabled={loading} style={{ padding: '8px 16px' }}>
           {loading ? 'Enviando...' : 'Enviar'}
         </button>
       </div>
     </div>
   );
-};
-
-export default Chatbox;
+}
