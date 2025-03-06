@@ -23,7 +23,8 @@ A full-stack barber scheduling application with integrated chatbot functionality
 This app provides a scheduling system for barbers Eduardo and Matheus. A chatbot assists clients in booking available time slots while preventing double bookings.
 
 ## App Layout
-![App Layout](placeholder_for_app_layout_image)
+![App Layout](assets/layout.png)
+
 
 ---
 
