@@ -8,4 +8,4 @@ confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
 disable_rollback = true
 image_repositories = []
-parameter_overrides = "AppointmentsTableName=\"Appointments\""
+parameter_overrides = "AppointmentsTableName=\"Appointments\" BarbersTableName=\"Barbers\""

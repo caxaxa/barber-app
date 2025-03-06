@@ -3,12 +3,10 @@ import os
 import boto3
 from boto3.dynamodb.conditions import Key
 from decimal import Decimal
-from urllib.parse import parse_qs  # for parsing query strings
+from urllib.parse import parse_qs
+from datetime import datetime, timedelta
 
 class DecimalEncoder(json.JSONEncoder):
-    """
-    Ensures Decimal types from DynamoDB are converted to int or float in JSON.
-    """
     def default(self, obj):
         if isinstance(obj, Decimal):
             if obj % 1 == 0:
@@ -17,25 +15,17 @@ class DecimalEncoder(json.JSONEncoder):
                 return float(obj)
         return super(DecimalEncoder, self).default(obj)
 
-# Read environment variables set in template.yaml or similar
 APPOINTMENTS_TABLE = os.environ.get('APPOINTMENTS_TABLE', 'Appointments')
 BARBERS_TABLE = os.environ.get('BARBERS_TABLE', 'barbers')
 
-# Initialize DynamoDB resource
 dynamodb = boto3.resource('dynamodb')
-
-# Table objects
 appointments_table = dynamodb.Table(APPOINTMENTS_TABLE)
 barbers_table = dynamodb.Table(BARBERS_TABLE)
 
 def lambda_handler(event, context):
-    """
-    Main Lambda entry point. Routes requests based on path + method.
-    """
     path = event.get("rawPath") or event.get("path", "")
     http_method = event.get("httpMethod") or event.get("requestContext", {}).get("http", {}).get("method", "")
 
-    # Handle CORS preflight
     if http_method == "OPTIONS":
         return {
             "statusCode": 200,
@@ -48,28 +38,18 @@ def lambda_handler(event, context):
             "body": ""
         }
 
-    # Route definitions
     if path == "/barbers" and http_method == "GET":
         return get_barbers_from_db()
-
     elif path == "/appointments" and http_method == "GET":
         return get_appointments(event)
-
     elif path == "/appointments/all" and http_method == "GET":
         return get_all_appointments()
-
     elif path == "/appointments/book" and http_method == "POST":
         return book_appointment(event)
-
     else:
         return response(404, {"message": "Not Found"})
 
-
 def get_barbers_from_db():
-    """
-    GET /barbers
-    Scans the "Barbers" table and returns all items.
-    """
     try:
         result = barbers_table.scan()
         items = result.get('Items', [])
@@ -78,18 +58,12 @@ def get_barbers_from_db():
         print("Error scanning barbers table:", e)
         return response(500, {"message": "Error scanning barbers table", "error": str(e)})
 
-
 def get_appointments(event):
-    """
-    GET /appointments?date=YYYY-MM-DD
-    Returns appointments for a specific date from the "Appointments" table.
-    """
     query = event.get("rawQueryString", "")
     params = parse_qs(query)
     date = params.get("date", [None])[0]
     if not date:
         return response(400, {"message": "Missing 'date' query parameter"})
-
     try:
         result = appointments_table.query(
             KeyConditionExpression=Key('date').eq(date)
@@ -100,12 +74,7 @@ def get_appointments(event):
         print("Error querying appointments:", e)
         return response(500, {"message": "Error querying appointments", "error": str(e)})
 
-
 def get_all_appointments():
-    """
-    GET /appointments/all
-    Returns all appointments from the "Appointments" table.
-    """
     try:
         result = appointments_table.scan()
         items = result.get('Items', [])
@@ -114,12 +83,14 @@ def get_all_appointments():
         print("Error scanning appointments:", e)
         return response(500, {"message": "Error scanning appointments", "error": str(e)})
 
-
 def book_appointment(event):
     """
     POST /appointments/book
-    Body JSON must include: { "barber_id": <int>, "date": "YYYY-MM-DD", "start_time": "HH:MM" }
-    Optionally: "duration", "client_name", "status"
+    Expected JSON: { "barber_id": <int>, "date": "YYYY-MM-DD", "start_time": "HH:MM", ... }
+    Enforces:
+      - Horário de funcionamento: 07:00 às 19:00.
+      - Não agendar aos domingos.
+      - Não agendar dentro de 40 minutos antes ou depois de um horário já reservado para o mesmo barbeiro.
     """
     try:
         body = json.loads(event.get("body", "{}"))
@@ -129,23 +100,54 @@ def book_appointment(event):
     barber_id = body.get("barber_id")
     date = body.get("date")
     start_time = body.get("start_time")
+    duration = int(body.get("duration", 40))
 
-    # Validate required fields
     if not (barber_id and date and start_time):
         return response(400, {"message": "Missing required fields: barber_id, date, start_time"})
 
     try:
-        # Check if slot already booked
-        existing = appointments_table.get_item(Key={'date': date, 'start_time': start_time})
-        if 'Item' in existing:
-            return response(409, {"message": "Time slot already booked."})
+        requested_start = datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
+    except ValueError as e:
+        return response(400, {"message": "Formato de data/hora inválido", "error": str(e)})
 
-        # Construct new appointment item
+    # Check for Sunday (weekday() returns 6 for Sunday)
+    if requested_start.weekday() == 6:
+        return response(400, {"message": "Não é possível agendar aos domingos."})
+
+    BUSINESS_START = datetime.strptime("07:00", "%H:%M").time()
+    BUSINESS_END = datetime.strptime("19:00", "%H:%M").time()
+
+    if requested_start.time() < BUSINESS_START:
+        return response(400, {"message": "Horário fora do expediente (antes das 07:00)."})
+    
+    requested_end = requested_start + timedelta(minutes=duration)
+    if requested_end.time() > BUSINESS_END:
+        return response(400, {"message": "Horário fora do expediente (após as 19:00)."})
+    
+    try:
+        result = appointments_table.query(
+            KeyConditionExpression=Key('date').eq(date)
+        )
+        items = result.get('Items', [])
+        for appt in items:
+            # Only consider appointments for the same barber
+            if int(appt.get("barber_id")) != int(barber_id):
+                continue
+            existing_start = datetime.strptime(f"{appt['date']} {appt['start_time']}", "%Y-%m-%d %H:%M")
+            # Check if the new appointment is within 40 minutes before or after an existing appointment
+            if abs((requested_start - existing_start).total_seconds()) < 40 * 60:
+                conflict_time = existing_start.strftime('%H:%M')
+                return response(409, {"message": f"Horário indisponível: conflito com horário marcado às {conflict_time}."})
+    except Exception as e:
+        print("Error checking existing appointments:", e)
+        return response(500, {"message": "Erro ao verificar horários existentes", "error": str(e)})
+
+    try:
         appointment = {
             'date': date,
             'start_time': start_time,
             'barber_id': barber_id,
-            'duration': body.get("duration", 40),
+            'duration': duration,
             'client_name': body.get("client_name", "Cliente Exemplo"),
             'status': body.get("status", "booked")
         }
@@ -153,8 +155,7 @@ def book_appointment(event):
         return response(200, {"success": True, "appointment": appointment})
     except Exception as e:
         print("Error booking appointment:", e)
-        return response(500, {"message": "Error booking appointment", "error": str(e)})
-
+        return response(500, {"message": "Erro ao marcar horário", "error": str(e)})
 
 def response(status_code, body):
     return {
