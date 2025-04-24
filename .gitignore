@@ -24,3 +24,4 @@ yarn.lock
 .DS_Store
 .aws/credentials
 .env
+.claude.json
