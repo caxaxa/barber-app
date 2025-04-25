@@ -60,3 +60,25 @@ export const mockAppointments = [
     duration: 40
   }
 ];
+
+/**
+ * Generate empty data sets for when we need to start from scratch
+ * @returns {Object} Empty data sets
+ */
+export const generateEmptyMockData = () => {
+  return {
+    appointments: [],
+    barbers: [
+      {
+        barber_id: 1,
+        name: "Trabalhador 1",
+        color: "#FF5722",
+        specialties: ["serviço 1", "serviço 2"]
+      }
+    ],
+    customers: []
+  };
+};
+
+// If you need mock customers, you can add them here
+export const mockCustomers = [];

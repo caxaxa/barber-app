@@ -9,8 +9,7 @@ import {
   Stack,
   Card,
   CardActionArea,
-  CardContent,
-  Divider
+  CardContent
 } from '@mui/material';
 import { callChatApi } from '../../services/api';
 import { useNotification } from '../ui/NotificationContext';
@@ -19,7 +18,7 @@ import { useConfig } from '../../context/ConfigContext';
 /**
  * Chatbox component that allows users to book appointments via a chat interface
  */
-export default function Chatbox({ onNewAppointment, barbers = [] }) {
+export default function Chatbox({ onNewAppointment, barbers = [], isEnterpriseAccount = true }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,7 +61,7 @@ export default function Chatbox({ onNewAppointment, barbers = [] }) {
 
   const today = new Date();
   const formattedDate = today.toISOString().split('T')[0];
-  const barberNames = barbers.length > 0 ? barbers.map(b => b.name).join(', ') : 'Nenhum barbeiro disponível';
+  const barberNames = barbers.length > 0 ? barbers.map(b => b.name).join(', ') : 'Nenhum profissional disponível';
   
   // Helper function to add minutes to a time string (HH:MM)
   const addMinutes = (timeStr, minutes) => {
@@ -86,7 +85,7 @@ export default function Chatbox({ onNewAppointment, barbers = [] }) {
   useEffect(() => {
     resetChat();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.chatbot?.guidedMode]);
+  }, [config?.chatbot?.guidedMode, isEnterpriseAccount]);
 
   // Initialize prompt with system message
   useEffect(() => {
@@ -120,15 +119,30 @@ export default function Chatbox({ onNewAppointment, barbers = [] }) {
   }, [messages, barberNames, formattedDate]);
 
   const getPromptText = () => {
+    const businessType = config?.business?.type?.toUpperCase() || 'BARBEARIA';
+    const businessName = config?.business?.name || 'Barbearia Elite';
+    const assistantName = config?.assistant?.name?.toUpperCase() || 'AMANDA';
+    const assistantFullTitle = config?.assistant?.fullTitle || 'Assistente Virtual';
+    
+    // Modify the prompt slightly for individual accounts
+    const isIndividual = !isEnterpriseAccount;
+    const individualModifier = isIndividual ? `
+    ## Configuração de Conta Individual
+    - Nesta configuração, há apenas um profissional disponível
+    - NUNCA pergunte ao cliente qual profissional ele deseja
+    - AUTOMATICAMENTE agende com o único profissional disponível: ${barberNames}
+    - Pule a etapa de escolha de profissional no fluxo de agendamento` : '';
+    
     return `
-# DIRETRIZES PARA O SISTEMA DE AGENDAMENTO DE ${config?.business?.type?.toUpperCase() || 'BARBEARIA'}
+# DIRETRIZES PARA O SISTEMA DE AGENDAMENTO DE ${businessType}
 
 ## Informações Operacionais
 Data atual: ${formattedDate}
 ${config?.professionals?.[0]?.plural || 'Profissionais'} disponíveis: ${barberNames}
+${individualModifier}
 
 ## Sua Função
-Você é ${config?.assistant?.name?.toUpperCase() || 'AMANDA'}, ${config?.assistant?.fullTitle || 'Assistente Virtual'}, a secretária virtual especializada da ${config?.business?.name || 'Barbearia Elite'}. Sua prioridade absoluta é oferecer uma experiência impecável de agendamento, combinando eficiência, empatia e solução de problemas.
+Você é ${assistantName}, ${assistantFullTitle}, a secretária virtual especializada da ${businessName}. Sua prioridade absoluta é oferecer uma experiência impecável de agendamento, combinando eficiência, empatia e solução de problemas.
 
 ## Diretrizes de Comunicação e Persona
 
@@ -173,20 +187,20 @@ Você é ${config?.assistant?.name?.toUpperCase() || 'AMANDA'}, ${config?.assist
 - Horários de início permitidos: a cada ${config?.business?.appointmentInterval || 10} minutos (${config?.business?.openHours || '07:00'}, ${addMinutes(config?.business?.openHours || '07:00', config?.business?.appointmentInterval || 10)}, ${addMinutes(config?.business?.openHours || '07:00', (config?.business?.appointmentInterval || 10)*2)}, etc.)
 
 ### Serviços e Especialidades
-- Cada barbeiro tem especialidades específicas. Não agende um serviço com barbeiro sem a especialidade.
-- Se um cliente pedir um serviço especializado, sugira APENAS barbeiros com essa especialidade.
+- Cada ${config?.professionals?.[0]?.singular || 'profissional'} tem especialidades específicas.
+- Se um cliente pedir um serviço especializado, sugira APENAS ${config?.professionals?.[0]?.plural || 'profissionais'} com essa especialidade.
 - Serviços VIP têm prioridade - ofereça os melhores horários para clientes VIP ou serviços premium.
 
-### Sistema de Barbeiros e Alocação
-- NUNCA invente barbeiros além dos listados como disponíveis.
-- NUNCA invente IDs de barbeiros - use SOMENTE os IDs existentes.
-- Se o cliente não especificar um barbeiro, sugira até 3 opções disponíveis.
-- Aplique a lógica de prioridade: clientes regulares têm prioridade com barbeiros específicos.
+### Sistema de ${config?.professionals?.[0]?.plural || 'Profissionais'} e Alocação
+- NUNCA invente ${config?.professionals?.[0]?.plural || 'profissionais'} além dos listados como disponíveis.
+- NUNCA invente IDs de ${config?.professionals?.[0]?.plural || 'profissionais'} - use SOMENTE os IDs existentes.
+${isIndividual ? '' : `- Se o cliente não especificar um ${config?.professionals?.[0]?.singular || 'profissional'}, sugira até 3 opções disponíveis.`}
+- Aplique a lógica de prioridade: clientes regulares têm prioridade com ${config?.professionals?.[0]?.plural || 'profissionais'} específicos.
 
 ### Regras de Conflito e Disponibilidade
-- Um barbeiro NÃO pode ter dois agendamentos simultâneos ou sobrepostos.
-- Mantenha o controle de disponibilidade dos barbeiros por dia/hora com máxima precisão.
-- Aplique bloqueios automáticos: se um barbeiro tem agendamento às 14:00, ele NÃO estará disponível novamente até 14:40.
+- Um ${config?.professionals?.[0]?.singular || 'profissional'} NÃO pode ter dois agendamentos simultâneos ou sobrepostos.
+- Mantenha o controle de disponibilidade dos ${config?.professionals?.[0]?.plural || 'profissionais'} por dia/hora com máxima precisão.
+- Aplique bloqueios automáticos: se um ${config?.professionals?.[0]?.singular || 'profissional'} tem agendamento às 14:00, ele NÃO estará disponível novamente até 14:40.
 
 ## Formatos e Padrões de Dados
 
@@ -201,17 +215,17 @@ Você é ${config?.assistant?.name?.toUpperCase() || 'AMANDA'}, ${config?.assist
 ### Validação de Dados
 - Valide RIGOROSAMENTE se as datas solicitadas estão no futuro.
 - Rejeite IMEDIATAMENTE agendamentos para datas no passado.
-- Confirme que o formato da hora está correto e divisível por 10 minutos.
-- Verifique se o ID do barbeiro existe na lista de barbeiros disponíveis.
+- Confirme que o formato da hora está correto e divisível por ${config?.business?.appointmentInterval || 10} minutos.
+- Verifique se o ID do ${config?.professionals?.[0]?.singular || 'profissional'} existe na lista de ${config?.professionals?.[0]?.plural || 'profissionais'} disponíveis.
 - Certifique-se de que o nome do cliente foi fornecido antes de confirmar.
 
 ### Confirmação e Finalização
 - SEMPRE obtenha confirmação explícita antes de finalizar o agendamento.
-- Estrutura de confirmação: "Para confirmar, você, [NOME DO CLIENTE], deseja agendar um [SERVIÇO] com [NOME DO BARBEIRO] para o dia [DATA FORMATADA POR EXTENSO] às [HORA]."
+- Estrutura de confirmação: "Para confirmar, você, [NOME DO CLIENTE], deseja agendar um [SERVIÇO] com [NOME DO ${config?.professionals?.[0]?.singular?.toUpperCase() || 'PROFISSIONAL'}] para o dia [DATA FORMATADA POR EXTENSO] às [HORA]."
 - Após confirmação, forneça apenas o objeto JSON exato, sem texto adicional:
 \`\`\`json
 {
-  "barber_id": [ID NUMÉRICO],
+  "${config?.professionals?.[0]?.singular?.toLowerCase() || 'barber'}_id": [ID NUMÉRICO],
   "date": "[AAAA-MM-DD]",
   "start_time": "[HH:MM]",
   "client_name": "[NOME COMPLETO]"
@@ -221,14 +235,14 @@ Você é ${config?.assistant?.name?.toUpperCase() || 'AMANDA'}, ${config?.assist
 ## Estratégias para Interface com Botões
 
 ### Opções Interativas
-- O usuário pode interagir com botões de serviço, barbeiros e horários
+- O usuário pode interagir com botões de serviço, ${config?.professionals?.[0]?.plural?.toLowerCase() || 'profissionais'} e horários
 - Quando o usuário seleciona um serviço via botão, reconheça a escolha
-- Quando o usuário seleciona um barbeiro via botão, reconheça a escolha
+${isIndividual ? '' : `- Quando o usuário seleciona um ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} via botão, reconheça a escolha`}
 - Quando o usuário seleciona um horário via botão, reconheça a escolha
 
 ## Conflitos de Agendamento
-- Se detectar conflito, explique CLARAMENTE: "Desculpe, [NOME DO BARBEIRO] já tem um compromisso às [HORA CONFLITANTE]."
-- Ofereça SEMPRE 3 alternativas específicas: horários próximos, mesmo barbeiro OU mesmo horário, barbeiro diferente.
+- Se detectar conflito, explique CLARAMENTE: "Desculpe, [NOME DO ${config?.professionals?.[0]?.singular?.toUpperCase() || 'PROFISSIONAL'}] já tem um compromisso às [HORA CONFLITANTE]."
+- Ofereça SEMPRE 3 alternativas específicas: horários próximos, mesmo ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} OU mesmo horário, ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} diferente.
 - Use frases como: "Posso oferecer [ALTERNATIVA 1], [ALTERNATIVA 2] ou [ALTERNATIVA 3]. Qual seria sua preferência?"
 
 ## Fluxo de Agendamento
@@ -240,13 +254,13 @@ Você é ${config?.assistant?.name?.toUpperCase() || 'AMANDA'}, ${config?.assist
 
 2. **Coleta de Preferências**
    - Solicite UMA INFORMAÇÃO POR VEZ - nunca sobrecarregue o cliente com várias perguntas.
-   - Sugira opções de serviços ou barbeiros quando apropriado.
+   - Sugira opções de serviços${isIndividual ? '' : ` ou ${config?.professionals?.[0]?.plural?.toLowerCase() || 'profissionais'}`} quando apropriado.
    - Utilize as preferências expressas pelo cliente para guiar o processo.
 
 3. **Verificação de Dados**
    - Confirme cada dado fornecido pelo cliente antes de prosseguir.
    - Valide o formato da data e hora.
-   - Verifique se o barbeiro escolhido está disponível (não tem agendamento no mesmo horário).
+   - Verifique se o ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} escolhido está disponível (não tem agendamento no mesmo horário).
 
 4. **Confirmação Final**
    - Repita TODOS os detalhes do agendamento para confirmação
@@ -381,8 +395,23 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           setShowServiceOptions(true);
           return "Qual serviço você gostaria de agendar?";
           
-        case 3: // After collecting service, ask for barber
+        case 3: // After collecting service, ask for barber (only in enterprise mode)
           setShowServiceOptions(false);
+          
+          // In individual mode, skip barber selection step
+          if (!isEnterpriseAccount && barbers.length > 0) {
+            setBookingState(prev => ({
+              ...prev,
+              selectedBarber: barbers[0],
+              step: 4
+            }));
+            
+            generateDateOptions();
+            setShowDateOptions(true);
+            return `Para qual data você gostaria de agendar seu ${bookingState.selectedService} com ${barbers[0].name}?`;
+          }
+          
+          // In enterprise mode, show barber selection
           setShowBarberOptions(true);
           return "Qual profissional você prefere para o serviço de " + bookingState.selectedService + "?";
           
@@ -472,16 +501,38 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       ]);
       
       // Add assistant response based on current step
-      const assistantResponse = { 
-        role: 'assistant', 
-        content: "Qual profissional você prefere para o serviço de " + service + "?" 
-      };
+      let assistantResponse;
+      
+      // For individual accounts, skip barber selection
+      if (!isEnterpriseAccount && barbers.length > 0) {
+        setBookingState(prev => ({
+          ...prev,
+          selectedBarber: barbers[0],
+          step: 4
+        }));
+        
+        assistantResponse = { 
+          role: 'assistant', 
+          content: `Para qual data você gostaria de agendar seu ${service} com ${barbers[0].name}?` 
+        };
+        
+        // Show date options instead of barber options
+        setShowServiceOptions(false);
+        generateDateOptions();
+        setShowDateOptions(true);
+      } else {
+        // For enterprise accounts, ask for barber selection
+        assistantResponse = { 
+          role: 'assistant', 
+          content: "Qual profissional você prefere para o serviço de " + service + "?" 
+        };
+        
+        // Update UI
+        setShowServiceOptions(false);
+        setShowBarberOptions(true);
+      }
       
       setMessages(prev => [...prev, assistantResponse]);
-      
-      // Update UI
-      setShowServiceOptions(false);
-      setShowBarberOptions(true);
     } else {
       // In free mode, just send as a message
       setInput(service);
@@ -588,8 +639,12 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
         { role: 'user', content: time }
       ]);
       
-      // Format date for display
-      const formattedDate = new Date(bookingState.selectedDate).toLocaleDateString('pt-BR');
+      // Format date for display in dd/mm/yyyy format
+      const selectedDate = new Date(bookingState.selectedDate);
+      const day = selectedDate.getDate().toString().padStart(2, '0');
+      const month = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
+      const year = selectedDate.getFullYear();
+      const formattedDate = `${day}/${month}/${year}`;
       
       // Add assistant response for confirmation
       const assistantResponse = { 
@@ -686,8 +741,12 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             const result = await onNewAppointment(appointmentData);
             console.log("Appointment creation result:", result);
             
-            // Format date for better readability
-            const formattedDate = new Date(bookingState.selectedDate).toLocaleDateString('pt-BR');
+            // Format date for better readability in dd/mm/yyyy format
+            const selectedDate = new Date(bookingState.selectedDate);
+            const day = selectedDate.getDate().toString().padStart(2, '0');
+            const month = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
+            const year = selectedDate.getFullYear();
+            const formattedDate = `${day}/${month}/${year}`;
             
             // Success message
             const successResponse = {
@@ -770,9 +829,24 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
               const barber = barbers.find(b => b.barber_id.toString() === appointmentData.barber_id.toString());
               const barberName = barber ? barber.name : `barbeiro ${appointmentData.barber_id}`;
               
-              // Format the date for better readability
-              const dateParts = appointmentData.date.split('-');
-              const formattedDisplayDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+              // Format the date for better readability - ensure we handle the date correctly
+              let formattedDisplayDate;
+              try {
+                if (appointmentData.date.includes('-')) {
+                  // ISO format YYYY-MM-DD
+                  const selectedDate = new Date(appointmentData.date);
+                  const day = selectedDate.getDate().toString().padStart(2, '0');
+                  const month = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
+                  const year = selectedDate.getFullYear();
+                  formattedDisplayDate = `${day}/${month}/${year}`;
+                } else {
+                  // Already formatted or alternative format
+                  formattedDisplayDate = appointmentData.date;
+                }
+              } catch (err) {
+                // Fallback to original format if there's an error
+                formattedDisplayDate = appointmentData.date;
+              }
               
               const successResponse = {
                 role: 'assistant',
@@ -810,14 +884,27 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       if (jsonStart !== -1 && jsonEnd !== -1) {
         const jsonString = text.substring(jsonStart, jsonEnd + 1);
         const data = JSON.parse(jsonString);
+        
+        // Support both "barber_id" and "professional_id"
+        const professionalIdKey = isEnterpriseAccount ? 'barber_id' : (
+          data.barber_id ? 'barber_id' : 'professional_id'
+        );
+        
         if (
-          data.barber_id &&
+          data[professionalIdKey] &&
           data.date &&
           data.start_time &&
           data.date.length === 10 &&
           data.start_time.length === 5
         ) {
-          return data;
+          // Normalize the data to use barber_id
+          const normalizedData = { ...data };
+          if (professionalIdKey !== 'barber_id') {
+            normalizedData.barber_id = data[professionalIdKey];
+            delete normalizedData[professionalIdKey];
+          }
+          
+          return normalizedData;
         }
       }
     } catch (error) {
@@ -1002,8 +1089,8 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           </Box>
         )}
         
-        {/* Barber Options - only show in guided mode */}
-        {isGuidedMode() && showBarberOptions && barbers.length > 0 && (
+        {/* Barber Options - only show in guided mode and enterprise account */}
+        {isGuidedMode() && showBarberOptions && barbers.length > 0 && isEnterpriseAccount && (
           <Box sx={{ mt: 2, mb: 2 }}>
             <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
               Escolha um profissional:
@@ -1151,4 +1238,5 @@ Chatbox.propTypes = {
       name: PropTypes.string.isRequired,
     })
   ),
+  isEnterpriseAccount: PropTypes.bool
 };

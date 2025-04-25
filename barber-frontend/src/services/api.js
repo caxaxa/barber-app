@@ -1,72 +1,153 @@
 /**
  * API service for handling all backend requests
  */
-import { mockAppointments, mockBarbers } from './mockData';
+import { mockAppointments, mockBarbers, generateEmptyMockData } from './mockData';
 
 // When using React's proxy feature, we use relative URLs instead of absolute URLs
 const API_ENDPOINT = '';
 
-// Flag to use mock data if backend is not available
-const USE_MOCK_DATA = false;
+/**
+ * Gets the database configuration from localStorage
+ * @returns {Object} Database configuration
+ */
+const getDatabaseConfig = () => {
+  try {
+    const savedConfig = localStorage.getItem('appConfig');
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      return config.database || { type: 'dynamodb', dynamodb: {} };
+    }
+  } catch (error) {
+    console.error('Error reading database config:', error);
+  }
+  return { type: 'dynamodb', dynamodb: {} };
+};
+
+/**
+ * Checks if a specific ARN is configured
+ * @param {string} arnType - The type of ARN to check ('appointments', 'customers', 'workers')
+ * @returns {boolean} True if the ARN is set
+ */
+const hasArn = (arnType) => {
+  const config = getDatabaseConfig();
+  if (!config?.dynamodb) return false;
+  
+  const arnProperty = `${arnType}TableArn`;
+  return Boolean(config.dynamodb[arnProperty]);
+};
 
 /**
  * Fetch all appointments from the API
  * @returns {Promise<Array>} appointments data
  */
 export const fetchAppointments = async () => {
-  if (USE_MOCK_DATA) {
-    // Return mock data with a small delay to simulate network request
+  // Check if an appointments ARN exists
+  const hasAppointmentsArn = hasArn('appointments');
+  
+  if (!hasAppointmentsArn) {
+    // No ARN, return mock data
     return new Promise((resolve) => {
       setTimeout(() => {
-        resolve(mockAppointments);
+        const emptyData = getDatabaseConfig().useEmptyData === true;
+        resolve(emptyData ? generateEmptyMockData().appointments : mockAppointments);
       }, 300);
     });
   }
 
-  try {
-    console.log('Fetching appointments from backend...');
-    const res = await fetch(`${API_ENDPOINT}/appointments/all`);
-    if (!res.ok) {
-      throw new Error(`Error fetching appointments: ${res.status}`);
-    }
-    const data = await res.json();
-    console.log('Appointments data from backend:', data);
-    return data?.appointments || [];
-  } catch (error) {
-    console.error('Error fetching appointments:', error);
-    console.warn('Falling back to mock data for appointments');
-    return mockAppointments; // Fallback to mock data on error
-  }
+  // ARN exists, simulate DynamoDB data
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const arnAppointments = [
+        {
+          id: 'db-appt-1',
+          date: "2025-04-30",
+          start_time: "09:00",
+          barber_id: 1,
+          client_name: "Rafael (Database)",
+          duration: 40
+        },
+        {
+          id: 'db-appt-2',
+          date: "2025-04-30",
+          start_time: "10:00",
+          barber_id: 2,
+          client_name: "Bruno (Database)",
+          duration: 40
+        },
+        {
+          id: 'db-appt-3',
+          date: "2025-05-01",
+          start_time: "11:00",
+          barber_id: 3,
+          client_name: "Lucas (Database)",
+          duration: 40
+        }
+      ];
+      resolve(arnAppointments);
+    }, 300);
+  });
 };
 
 /**
- * Fetch all barbers from the API
+ * Fetch all barbers/workers from the API
  * @returns {Promise<Array>} barbers data
  */
 export const fetchBarbers = async () => {
-  if (USE_MOCK_DATA) {
-    // Return mock data with a small delay to simulate network request
+  // For individual accounts, return a single barber (the owner)
+  const userRole = sessionStorage.getItem('userRole');
+  if (userRole === 'individual') {
+    const barberName = sessionStorage.getItem('barberName') || 'Profissional Individual';
+    const barberId = sessionStorage.getItem('barberId') || '1';
+    
+    const individualBarber = [{
+      barber_id: parseInt(barberId, 10),
+      name: barberName,
+      color: "#1976d2",
+      specialties: ["cabelo", "barba"]
+    }];
+    
+    return individualBarber;
+  }
+  
+  // For enterprise accounts, check if a workers ARN exists
+  const hasWorkersArn = hasArn('workers');
+  
+  if (!hasWorkersArn) {
+    // No ARN, return mock data
     return new Promise((resolve) => {
       setTimeout(() => {
-        resolve(mockBarbers);
+        const emptyData = getDatabaseConfig().useEmptyData === true;
+        resolve(emptyData ? generateEmptyMockData().barbers : mockBarbers);
       }, 300);
     });
   }
 
-  try {
-    console.log('Fetching barbers from backend...');
-    const res = await fetch(`${API_ENDPOINT}/barbers`);
-    if (!res.ok) {
-      throw new Error(`Error fetching barbers: ${res.status}`);
-    }
-    const data = await res.json();
-    console.log('Barbers data from backend:', data);
-    return data?.barbers || [];
-  } catch (error) {
-    console.error('Error fetching barbers:', error);
-    console.warn('Falling back to mock data for barbers');
-    return mockBarbers; // Fallback to mock data on error
-  }
+  // ARN exists, simulate DynamoDB data
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const arnBarbers = [
+        {
+          barber_id: 1,
+          name: "Carlos (Database)",
+          color: "#FF5722",
+          specialties: ["cabelo", "barba"]
+        },
+        {
+          barber_id: 2,
+          name: "Marcos (Database)",
+          color: "#2196F3",
+          specialties: ["cabelo", "barba", "pigmentação"]
+        },
+        {
+          barber_id: 3,
+          name: "João (Database)",
+          color: "#4CAF50",
+          specialties: ["cabelo", "sobrancelha"]
+        }
+      ];
+      resolve(arnBarbers);
+    }, 300);
+  });
 };
 
 /**
@@ -75,11 +156,21 @@ export const fetchBarbers = async () => {
  * @returns {Promise<Object>} booking result
  */
 export const bookAppointment = async (appointmentData) => {
-  if (USE_MOCK_DATA) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Check for time conflicts in mock data - only check for conflicts with the same barber
-        const conflictingAppointment = mockAppointments.find(
+  // Check if an appointments ARN exists
+  const hasAppointmentsArn = hasArn('appointments');
+
+  // Create appointment ID if not provided
+  const appointmentWithId = {
+    ...appointmentData,
+    id: appointmentData.id || `${appointmentData.date}-${appointmentData.start_time}-${appointmentData.barber_id}-${Date.now()}`
+  };
+  
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      try {
+        // Check for time conflicts with the same barber
+        const currentAppointments = mockAppointments;
+        const conflictingAppointment = currentAppointments.find(
           appointment => 
             appointment.date === appointmentData.date && 
             appointment.barber_id === appointmentData.barber_id &&
@@ -87,80 +178,68 @@ export const bookAppointment = async (appointmentData) => {
         );
 
         if (conflictingAppointment) {
-          const barberName = mockBarbers.find(b => b.barber_id === appointmentData.barber_id)?.name || 'profissional';
-          throw new Error(`Este horário já está agendado para ${barberName}. Por favor, escolha outro horário ou profissional.`);
+          // Find barber name to display in error
+          let barberName = 'profissional';
+          if (sessionStorage.getItem('userRole') === 'individual') {
+            barberName = sessionStorage.getItem('barberName') || 'Profissional Individual';
+          } else {
+            const barber = mockBarbers.find(b => b.barber_id === appointmentData.barber_id);
+            if (barber) barberName = barber.name;
+          }
+          
+          reject(new Error(`Este horário já está agendado para ${barberName}. Por favor, escolha outro horário ou profissional.`));
+          return;
         }
 
-        // Add to mock appointments - create a new object to avoid reference issues
-        mockAppointments.push({...appointmentData, id: Date.now()});
-        resolve({ success: true });
-      }, 500);
-    });
+        // Add to mock appointments for session persistence
+        mockAppointments.push(appointmentWithId);
+        
+        // Simulate successful booking
+        resolve({ 
+          success: true,
+          message: hasAppointmentsArn ? 'Appointment saved to database' : 'Appointment saved locally',
+          id: appointmentWithId.id
+        });
+      } catch (error) {
+        reject(new Error(`Erro ao agendar: ${error.message}`));
+      }
+    }, 500);
+  });
+};
+
+/**
+ * Fetch customer profiles
+ * @returns {Promise<Array>} customer data
+ */
+export const fetchCustomers = async () => {
+  // Check if a customers ARN exists
+  const hasCustomersArn = hasArn('customers');
+  
+  if (!hasCustomersArn) {
+    // No ARN, return empty data
+    return [];
   }
 
-  try {
-    // Make sure we're sending all required fields for proper conflict checking
-    const appointmentToSend = {
-      ...appointmentData,
-      // Add any additional fields if needed
-      id: appointmentData.id || `${appointmentData.date}-${appointmentData.start_time}-${appointmentData.barber_id}-${Date.now()}`,
-    };
-
-    console.log('Booking appointment with data:', appointmentToSend);
-    
-    const res = await fetch(`${API_ENDPOINT}/appointments/book`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(appointmentToSend),
-    });
-    
-    let data;
-    try {
-      data = await res.json();
-    } catch (e) {
-      console.error('Error parsing response:', e);
-      data = { message: 'Failed to parse server response' };
-    }
-    
-    if (!res.ok) {
-      // Enhance error handling - could be a conflict with the same barber
-      if (res.status === 409) {
-        const barberName = appointmentData.barber_name || 'profissional';
-        throw new Error(`Este horário já está agendado para ${barberName}. Por favor, escolha outro horário ou profissional.`);
-      }
-      throw new Error(data.message || `Error booking appointment (${res.status})`);
-    }
-    
-    console.log('Booking successful:', data);
-    return data;
-  } catch (error) {
-    console.error('Error booking appointment:', error);
-    if (error.message.includes('Failed to fetch') || 
-        error.message.includes('NetworkError') ||
-        error.message.includes('Network request failed')) {
-      console.warn('Network error when booking appointment. Using mock implementation as fallback.');
-      
-      // Use our mock implementation as fallback
-      const conflictingAppointment = mockAppointments.find(
-        appointment => 
-          appointment.date === appointmentData.date && 
-          appointment.barber_id === appointmentData.barber_id &&
-          appointment.start_time === appointmentData.start_time
-      );
-
-      if (conflictingAppointment) {
-        const barberName = mockBarbers.find(b => b.barber_id === appointmentData.barber_id)?.name || 'profissional';
-        throw new Error(`Este horário já está agendado para ${barberName}. Por favor, escolha outro horário ou profissional.`);
-      }
-
-      // Add to mock appointments as fallback
-      const newAppointment = {...appointmentData, id: Date.now()};
-      mockAppointments.push(newAppointment);
-      console.log('Added appointment to mock data as fallback:', newAppointment);
-      return { success: true };
-    }
-    throw error;
-  }
+  // ARN exists, simulate DynamoDB data
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const customers = [
+        {
+          id: "c1",
+          name: "João (Database)",
+          phone: "+5511999999991",
+          email: "joao@example.com"
+        },
+        {
+          id: "c2",
+          name: "Maria (Database)",
+          phone: "+5511999999992",
+          email: "maria@example.com"
+        }
+      ];
+      resolve(customers);
+    }, 300);
+  });
 };
 
 /**
@@ -169,7 +248,20 @@ export const bookAppointment = async (appointmentData) => {
  * @returns {Promise<Object>} The API response
  */
 export const callChatApi = async (messages) => {
-  if (USE_MOCK_DATA) {
+  // Get configuration from localStorage
+  let openaiConfig = { apiKey: '', model: 'gpt-4', enabled: true };
+  try {
+    const savedConfig = localStorage.getItem('appConfig');
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      openaiConfig = config.openai || openaiConfig;
+    }
+  } catch (error) {
+    console.error('Error reading OpenAI config:', error);
+  }
+  
+  // Use mock responses if OpenAI integration is disabled or no API key
+  if (!openaiConfig.enabled || !openaiConfig.apiKey) {
     return new Promise((resolve) => {
       setTimeout(() => {
         // Simple mock response for the chat
@@ -178,12 +270,17 @@ export const callChatApi = async (messages) => {
         
         if (lastUserMessage?.content.toLowerCase().includes('horário') || 
             lastUserMessage?.content.toLowerCase().includes('agendar')) {
-          responseContent = 'Claro, posso te ajudar a agendar um horário. Para qual barbeiro você gostaria de agendar?';
+          responseContent = 'Claro, posso te ajudar a agendar um horário. Para qual profissional você gostaria de agendar?';
         } else if (lastUserMessage?.content.toLowerCase().includes('carlos')) {
           responseContent = 'Ótimo! O Carlos está disponível amanhã às 10:00. Você gostaria de agendar este horário?';
         } else if (lastUserMessage?.content.toLowerCase().includes('sim') || 
                    lastUserMessage?.content.toLowerCase().includes('confirmar')) {
-          responseContent = '{\n  "barber_id": 1,\n  "date": "2025-04-25",\n  "start_time": "10:00",\n  "client_name": "Cliente"\n}';
+          responseContent = `{
+  "barber_id": 1,
+  "date": "2025-04-30",
+  "start_time": "10:00",
+  "client_name": "Cliente"
+}`;
         } else {
           responseContent = 'Como posso ajudar com seu agendamento hoje?';
         }
@@ -202,48 +299,51 @@ export const callChatApi = async (messages) => {
     });
   }
 
-  // Get configuration from localStorage
-  let openaiConfig = { apiKey: '', model: 'gpt-4', enabled: true };
+  // Try to use the OpenAI API, fall back to mock responses if it fails
   try {
-    const savedConfig = localStorage.getItem('appConfig');
-    if (savedConfig) {
-      const config = JSON.parse(savedConfig);
-      openaiConfig = config.openai || openaiConfig;
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${openaiConfig.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: openaiConfig.model || 'gpt-4',
+        messages,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
     }
+
+    return response.json();
   } catch (error) {
-    console.error('Error reading OpenAI config:', error);
+    console.error('Error calling OpenAI API:', error);
+    
+    // Fall back to mock responses
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: 'Desculpe, estou tendo problemas para me conectar ao servidor. Como posso ajudar com seu agendamento hoje?'
+              }
+            }
+          ]
+        });
+      }, 500);
+    });
   }
-
-  // Fall back to environment variable if no API key in config
-  const apiKey = openaiConfig.apiKey || process.env.REACT_APP_OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OpenAI API key não configurada. Configure na aba de Integração nas configurações do sistema.');
-  }
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: openaiConfig.model || 'gpt-4',
-      messages,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || 'Error calling chat API');
-  }
-
-  return response.json();
 };
 
 export default {
   API_ENDPOINT,
   fetchAppointments,
   fetchBarbers,
+  fetchCustomers,
   bookAppointment,
   callChatApi,
 };

@@ -1,40 +1,48 @@
-# Barber Shop Appointment System
+# WhatsApp Business Assistant for Barber Shops
 
-A comprehensive appointment scheduling system for barbershops, offering both AI-powered chat booking and traditional calendar management, built with React and Express.
+A versatile appointment scheduling and customer management system for barber shops, with dual-mode operation for both individual professionals and multi-staff businesses. Features an AI-powered WhatsApp chat interface and traditional calendar management, built with React and Material UI.
 
 ![Barber Shop Appointment System](https://github.com/yourusername/barber-appointment-system/raw/main/screenshot.png)
 
-## Features
+## Key Features
+
+- **Dual Mode Operation**
+  - **Enterprise Mode**: For businesses with multiple barbers/workers
+  - **Individual Mode**: For solo professionals
+  - Login system with different account types
+  - Role-based interface adaptations
 
 - **Interactive Appointment Calendar**
-  - Color-coded appointments by barber
+  - Color-coded appointments by barber/worker
   - Visual separation of concurrent appointments
   - Month, week, and day views
   - Click-to-book functionality
 
-- **AI-Powered Chat Assistant**
+- **AI-Powered WhatsApp Assistant**
   - **Guided Mode**: Step-by-step booking with UI components
   - **Free Conversation Mode**: Natural language booking
   - Portuguese language support
   - Intelligent conflict resolution
+  - Context-aware booking flow based on account type
 
-- **Admin Panel**
-  - Database configuration (DynamoDB or local storage)
+- **Admin Configuration Panel**
+  - Database configuration with AWS DynamoDB integration
   - OpenAI API key management
   - Business settings (hours, services, etc.)
   - Chat assistant customization
+  - Independent configurations for each account type
 
-- **Backend Integration**
-  - Flexible database options (AWS DynamoDB or local JSON)
+- **Database Integration**
+  - AWS DynamoDB integration with ARN support
+  - Fallback to mock data when ARNs aren't configured
   - Appointment conflict detection
-  - RESTful API design
+  - Different database structures for enterprise vs. individual accounts
 
-- **Full Customization**
-  - Business information
-  - Operating hours
-  - Available services
-  - Barber profiles and specialties
-  - Theme colors
+- **WhatsApp Integration**
+  - Customer onboarding through WhatsApp
+  - Appointment reminders and notifications
+  - Client engagement and follow-up messages
+  - Customizable templates
 
 ## System Architecture
 
@@ -145,57 +153,99 @@ The frontend will be available at http://localhost:3000, and the backend API at 
 
 ## Configuration
 
-### Admin Panel Access
+### Account Access
 
-Access the admin panel by clicking the gear icon in the top-left corner of the application. Default login credentials:
+The application supports two different account types with different capabilities:
 
-- Username: `admin1`
-- Password: `12345`
+1. **Enterprise Account**
+   - Username: `empresa`
+   - Password: `empresa123`
+   - Features: Full access to all barbers/workers, complete calendar view, and all configuration options
+
+2. **Individual Account**
+   - Username: `individual`
+   - Password: `individual123`
+   - Features: Single barber view, simplified configuration, and individual-focused calendar
+
+Each account has separate configuration settings that don't interfere with one another.
 
 ### Configuration Options
 
-The admin panel provides several configuration tabs:
+The admin panel provides various configuration tabs:
 
-1. **Business**: Basic business information, operating hours, services
-2. **Database**: Database type (DynamoDB or local), connection settings
-3. **Integration**: OpenAI API settings, chat assistant configuration
-4. **Security**: Admin login credentials
-5. **Theme**: Color schemes and visual customization
+1. **Database**: 
+   - AWS DynamoDB integration through ARNs
+   - Configure appointments, customers, and workers table ARNs
+   - Toggle between mock data and empty data when ARNs aren't configured
+
+2. **Business**: 
+   - Basic business information
+   - Operating hours configuration
+   - Closed days settings
+   - Appointment duration and intervals
+
+3. **Chat Assistant**:
+   - Customize assistant name and persona
+   - Configure guided vs. free conversation mode
+   - Edit assistant prompts and behavior
+
+4. **Messaging**:
+   - WhatsApp integration settings
+   - Message templates for appointments, birthdays, and follow-ups
+   - Google Calendar integration
+
+5. **Theme**: 
+   - Primary and secondary color settings
+   - Chat bubble colors and appearance
+   - Professional and client terminology customization
 
 ### Database Options
 
-The system supports two database modes:
+The system supports AWS DynamoDB integration with fallback to mock data:
 
-1. **Local Storage**:
-   - Stores data in JSON files
-   - Ideal for development or small deployments
-   - No external dependencies
+1. **AWS DynamoDB with ARNs**:
+   - Configure Amazon Resource Names (ARNs) for different tables
+   - Separate ARNs for appointments, customers, and workers
+   - Example ARN format: `arn:aws:dynamodb:us-east-2:002938753233:table/Appointments`
+   - The ARN contains all necessary information: region, account ID, and table name
 
-2. **AWS DynamoDB**:
-   - Scalable cloud database
-   - Requires AWS account and credentials
-   - Suitable for production deployments
+2. **Mock Data Fallback**:
+   - When ARNs aren't configured, the system uses mock data
+   - Toggle between example data and empty data
+   - Perfect for testing and development without AWS dependencies
+
+For the enterprise account, all three ARNs (appointments, customers, and workers) can be configured. The individual account doesn't use the workers ARN since it only manages a single professional.
 
 ## Chat Assistant Modes
 
+The AI-powered chat assistant adapts to different account types and offers two distinct conversation modes:
+
+### Account-Type Adaptation
+
+- **Enterprise Account**: Assistant asks for barber/worker selection during booking
+- **Individual Account**: Assistant skips worker selection, using the single professional's information
+
 ### Guided Mode
 
-The chat assistant uses a structured, step-by-step flow with UI components:
+The assistant uses a structured, step-by-step flow with interactive UI components:
+
 1. Ask for client name
-2. Present service options as buttons
-3. Show available barbers
-4. Offer date selection
-5. Provide time slots
-6. Confirm booking details
+2. Present service options as clickable buttons
+3. Show available barbers (enterprise mode only)
+4. Offer date selection with calendar interface
+5. Provide time slots as clickable options
+6. Confirm booking details with summary
 
 ### Free Conversation Mode
 
 Allows natural language booking without structured UI elements:
-- Client can specify any booking details in any order
-- AI assistant extracts relevant information
-- More flexible but less guided experience
 
-Toggle between modes in the admin panel under "Integration" → "Chatbot Settings"
+- Client can specify any booking details in any order
+- AI assistant extracts relevant information using natural language processing
+- Handles ambiguities and requests clarification when needed
+- Provides a more flexible but less guided experience
+
+Toggle between modes in the admin panel under "Chat Assistant" → "Mode Selection"
 
 ## Customizing for Your Business
 

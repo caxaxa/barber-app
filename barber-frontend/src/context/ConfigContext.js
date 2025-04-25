@@ -16,14 +16,19 @@ const defaultConfig = {
   database: {
     type: 'dynamodb', // Options: 'dynamodb', 'local'
     dynamodb: {
-      region: 'us-east-2',
+      region: 'us-east-1',
       appointmentsTable: 'Appointments',
-      barbersTable: 'Barbers',
+      customersTable: 'Customers',
+      workersTable: 'Workers',
+      appointmentsTableArn: '', // New field for ARN
+      customersTableArn: '', // New field for ARN
+      workersTableArn: '', // New field for ARN
     },
     local: {
       enabled: false,
       appointments: [],
-      barbers: []
+      customers: [],
+      workers: []
     }
   },
   chatbot: {
@@ -163,8 +168,36 @@ Você é a AMANDA, Assistente Multifuncional Avançada para Navegação e Defini
     }
   ],
   auth: {
-    username: 'admin1',
-    password: '12345'
+    username: 'admin',
+    password: 'admin123'
+  }
+};
+
+// Default individual config (simplified version)
+const defaultIndividualConfig = {
+  ...defaultConfig,
+  business: {
+    ...defaultConfig.business,
+    name: 'Serviço Individual',
+    type: 'Profissional Autônomo',
+  },
+  database: {
+    ...defaultConfig.database,
+    dynamodb: {
+      ...defaultConfig.database.dynamodb,
+      workersTable: '', // No workers table for individual mode
+      workersTableArn: '', // No workers ARN for individual mode
+    }
+  }
+};
+
+// Default enterprise config
+const defaultEnterpriseConfig = {
+  ...defaultConfig,
+  business: {
+    ...defaultConfig.business,
+    name: 'Empresa Multiusuário',
+    type: 'Empresa de Serviços',
   }
 };
 
@@ -179,35 +212,118 @@ export const useConfig = () => {
 };
 
 export function ConfigProvider({ children }) {
-  // Initialize state with saved config or default
+  // Get the config storage key based on user role
+  const getConfigStorageKey = (role) => {
+    switch (role) {
+      case 'enterprise':
+        return 'enterpriseAppConfig';
+      case 'individual':
+        return 'individualAppConfig';
+      default:
+        return 'appConfig';
+    }
+  };
+
+  const [userRole, setUserRole] = useState(() => {
+    return sessionStorage.getItem('userRole') || null;
+  });
+  
+  // Initialize state with saved config or default based on role
   const [config, setConfig] = useState(() => {
-    const savedConfig = localStorage.getItem('appConfig');
-    return savedConfig ? JSON.parse(savedConfig) : defaultConfig;
+    const role = sessionStorage.getItem('userRole');
+    const storageKey = getConfigStorageKey(role);
+    const savedConfig = localStorage.getItem(storageKey);
+    
+    if (savedConfig) {
+      console.log(`Loading saved config for ${role || 'default'} user`);
+      return JSON.parse(savedConfig);
+    }
+    
+    // Use appropriate default based on role
+    if (role === 'enterprise') {
+      return defaultEnterpriseConfig;
+    } else if (role === 'individual') {
+      return defaultIndividualConfig;
+    }
+    
+    return defaultConfig;
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Save config to localStorage whenever it changes
+  // Save config to localStorage whenever it changes, using role-specific key
   useEffect(() => {
-    localStorage.setItem('appConfig', JSON.stringify(config));
-  }, [config]);
+    const storageKey = getConfigStorageKey(userRole);
+    console.log(`Saving config for ${userRole || 'default'} user to ${storageKey}`);
+    localStorage.setItem(storageKey, JSON.stringify(config));
+  }, [config, userRole]);
+
+  // Check for existing authentication on mount
+  useEffect(() => {
+    const storedRole = sessionStorage.getItem('userRole');
+    if (storedRole) {
+      setIsAuthenticated(true);
+      setUserRole(storedRole);
+    }
+  }, []);
 
   // Authentication with role-based access
   const login = (username, password) => {
-    // Admin authentication
-    if (username === config.auth.username && password === config.auth.password) {
+    // Enterprise account authentication
+    if (username === "empresa" && password === "empresa123") {
+      const role = 'enterprise';
       setIsAuthenticated(true);
-      sessionStorage.setItem('userRole', 'admin');
-      return { success: true, role: 'admin' };
+      setUserRole(role);
+      sessionStorage.setItem('userRole', role);
+      
+      // Get enterprise-specific config storage key
+      const storageKey = getConfigStorageKey(role);
+      
+      // Load enterprise default config if first login
+      if (!localStorage.getItem(storageKey)) {
+        console.log(`First login for ${role}, setting default enterprise config`);
+        setConfig(defaultEnterpriseConfig);
+      } else {
+        // Load existing enterprise config
+        const savedConfig = localStorage.getItem(storageKey);
+        setConfig(JSON.parse(savedConfig));
+      }
+      
+      return { success: true, role };
     }
     
-    // Individual barber authentication
-    if (username === "barber" && password === "barber123") {
+    // Individual account authentication
+    if (username === "individual" && password === "individual123") {
+      const role = 'individual';
       setIsAuthenticated(true);
-      sessionStorage.setItem('userRole', 'barber');
-      sessionStorage.setItem('barberId', '1'); // Hardcoded for the example, would be dynamic in a real system
-      sessionStorage.setItem('barberName', 'Carlos Silva'); // Hardcoded for the example
-      return { success: true, role: 'barber' };
+      setUserRole(role);
+      sessionStorage.setItem('userRole', role);
+      sessionStorage.setItem('barberId', '1');
+      sessionStorage.setItem('barberName', 'Profissional Individual');
+      
+      // Get individual-specific config storage key
+      const storageKey = getConfigStorageKey(role);
+      
+      // Load individual default config if first login
+      if (!localStorage.getItem(storageKey)) {
+        console.log(`First login for ${role}, setting default individual config`);
+        setConfig(defaultIndividualConfig);
+      } else {
+        // Load existing individual config
+        const savedConfig = localStorage.getItem(storageKey);
+        setConfig(JSON.parse(savedConfig));
+      }
+      
+      return { success: true, role };
+    }
+    
+    // Legacy authentication
+    if (username === config.auth.username && password === config.auth.password) {
+      const role = 'admin';
+      setIsAuthenticated(true);
+      setUserRole(role);
+      sessionStorage.setItem('userRole', role);
+      return { success: true, role };
     }
     
     return { success: false };
@@ -215,9 +331,15 @@ export function ConfigProvider({ children }) {
 
   const logout = () => {
     setIsAuthenticated(false);
+    setUserRole(null);
     sessionStorage.removeItem('userRole');
     sessionStorage.removeItem('barberId');
     sessionStorage.removeItem('barberName');
+  };
+
+  // Get current user role
+  const getUserRole = () => {
+    return userRole || sessionStorage.getItem('userRole');
   };
 
   // Update configuration
@@ -225,10 +347,19 @@ export function ConfigProvider({ children }) {
     setConfig(newConfig);
   };
 
-  // Reset to default configuration
+  // Reset to default configuration based on role
   const resetConfig = () => {
-    setConfig(defaultConfig);
-    localStorage.setItem('appConfig', JSON.stringify(defaultConfig));
+    const role = getUserRole();
+    let defaultCfg = defaultConfig;
+    
+    if (role === 'enterprise') {
+      defaultCfg = defaultEnterpriseConfig;
+    } else if (role === 'individual') {
+      defaultCfg = defaultIndividualConfig;
+    }
+    
+    setConfig(defaultCfg);
+    localStorage.setItem('appConfig', JSON.stringify(defaultCfg));
   };
   
   return (
@@ -239,7 +370,8 @@ export function ConfigProvider({ children }) {
         resetConfig,
         isAuthenticated,
         login,
-        logout
+        logout,
+        getUserRole
       }}
     >
       {children}

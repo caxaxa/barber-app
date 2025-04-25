@@ -1,0 +1,579 @@
+/**
+ * API service for handling all backend requests
+ */
+import { mockAppointments, mockBarbers, generateEmptyMockData } from './mockData';
+
+// When using React's proxy feature, we use relative URLs instead of absolute URLs
+const API_ENDPOINT = '';
+
+/**
+ * Gets the config storage key based on user role
+ * @param {string} role - The user role
+ * @returns {string} The storage key to use
+ */
+const getConfigStorageKey = (role) => {
+  switch (role) {
+    case 'enterprise':
+      return 'enterpriseAppConfig';
+    case 'individual':
+      return 'individualAppConfig';
+    default:
+      return 'appConfig';
+  }
+};
+
+/**
+ * Gets the database configuration from localStorage based on current user role
+ * @returns {Object} Database configuration
+ */
+const getDatabaseConfig = () => {
+  try {
+    // Get the current user role to ensure we use the right configuration
+    const userRole = sessionStorage.getItem('userRole');
+    
+    // Get the role-specific config storage key
+    const storageKey = getConfigStorageKey(userRole);
+    
+    // Get the saved config from localStorage using the role-specific key
+    const savedConfig = localStorage.getItem(storageKey);
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      const dbConfig = config.database || { type: 'dynamodb', dynamodb: {} };
+      console.log(`Retrieved database config for ${userRole} account using key ${storageKey}:`, dbConfig);
+      return dbConfig;
+    }
+    
+    console.log(`No saved config found for ${userRole} under key ${storageKey}, using defaults`);
+  } catch (error) {
+    console.error('Error reading database config:', error);
+  }
+  
+  return { type: 'dynamodb', dynamodb: {} };
+};
+
+/**
+ * Checks if the required ARNs are configured for a specific table
+ * @param {string} tableType - The type of table to check ('appointments', 'customers', 'workers')
+ * @returns {boolean} True if the ARN for the specified table is set
+ */
+const hasTableArn = (tableType) => {
+  const dbConfig = getDatabaseConfig();
+  
+  // This function now always returns true in dev mode for testing
+  // In a real app, you'd check if the ARN is actually set
+  
+  // Create property names for the respective table ARNs
+  const arnPropertyNames = {
+    'appointments': 'appointmentsTableArn',
+    'customers': 'customersTableArn',
+    'workers': 'workersTableArn'
+  };
+  
+  // Get the appropriate property name
+  const arnProperty = arnPropertyNames[tableType];
+  if (!arnProperty) {
+    console.log(`[DYNAMODB] Invalid table type: ${tableType}`);
+    return false;
+  }
+  
+  // Get the ARN value
+  const arnValue = dbConfig.dynamodb?.[arnProperty];
+  
+  // Log whether the ARN is found for debugging
+  if (arnValue) {
+    console.log(`[DYNAMODB] Found ${tableType} ARN: ${arnValue}`);
+  } else {
+    console.log(`[DYNAMODB] No ${tableType} ARN found, but using DynamoDB data anyway`);
+  }
+  
+  // IMPORTANT: For testing, always return true to ensure DynamoDB path is always used
+  // Return true to always use DynamoDB data for demonstration
+  return true;
+};
+
+/**
+ * Checks if all required ARNs are configured - not currently used but kept for reference
+ * @returns {boolean} True if all required ARNs are set
+ */
+// eslint-disable-next-line no-unused-vars
+const hasRequiredArns = () => {
+  const dbConfig = getDatabaseConfig();
+  
+  // For enterprise accounts, require all three ARNs
+  const userRole = sessionStorage.getItem('userRole');
+  if (userRole === 'enterprise') {
+    return !!(dbConfig.dynamodb?.appointmentsTableArn && 
+             dbConfig.dynamodb?.customersTableArn && 
+             dbConfig.dynamodb?.workersTableArn);
+  }
+  
+  // For individual accounts, only require appointments and customers ARNs
+  return !!(dbConfig.dynamodb?.appointmentsTableArn && 
+           dbConfig.dynamodb?.customersTableArn);
+};
+
+/**
+ * Fetch all appointments from the API
+ * @returns {Promise<Array>} appointments data
+ */
+export const fetchAppointments = async () => {
+  // Always use DynamoDB data for testing
+  // Don't even check for ARNs - this simulates data coming from DynamoDB for any configuration
+  
+  console.log('[DYNAMODB TEST] Always using DynamoDB data for appointments');
+  
+  // Create simulated DynamoDB data
+  const dynamoDbAppointments = [
+    {
+      date: "2025-04-26",
+      start_time: "09:00",
+      barber_id: 101,
+      client_name: "Rafael DynamoDB",
+      duration: 40,
+      fromArn: true
+    },
+    {
+      date: "2025-04-26",
+      start_time: "10:00",
+      barber_id: 102,
+      client_name: "Bruno DynamoDB", 
+      duration: 40,
+      fromArn: true
+    },
+    {
+      date: "2025-04-26",
+      start_time: "11:00",
+      barber_id: 103,
+      client_name: "Lucas DynamoDB",
+      duration: 40,
+      fromArn: true
+    },
+    {
+      date: "2025-04-27",
+      start_time: "09:00",
+      barber_id: 101,
+      client_name: "Gustavo DynamoDB",
+      duration: 40,
+      fromArn: true
+    }
+  ];
+  
+  // Return the data immediately for testing
+  return dynamoDbAppointments;
+  
+  // The code below is kept for reference but isn't used now
+  /* eslint-disable no-unreachable */
+  const dbConfig = getDatabaseConfig();
+  const appointmentsArn = dbConfig.dynamodb?.appointmentsTableArn;
+  
+  try {
+    console.log('[DYNAMODB] Fetching appointments using ARN:', appointmentsArn);
+    
+    // Special DynamoDB data - completely replacing the mock data
+    // This simulates actual data coming from DynamoDB
+    const dynamoDbAppointments = [
+      {
+        date: "2025-04-26",
+        start_time: "09:00",
+        barber_id: 101,
+        client_name: "Rafael DynamoDB",
+        duration: 40,
+        fromArn: true
+      },
+      {
+        date: "2025-04-26",
+        start_time: "10:00",
+        barber_id: 102,
+        client_name: "Bruno DynamoDB", 
+        duration: 40,
+        fromArn: true
+      },
+      {
+        date: "2025-04-26",
+        start_time: "11:00",
+        barber_id: 103,
+        client_name: "Lucas DynamoDB",
+        duration: 40,
+        fromArn: true
+      },
+      {
+        date: "2025-04-27",
+        start_time: "09:00",
+        barber_id: 101,
+        client_name: "Gustavo DynamoDB",
+        duration: 40,
+        fromArn: true
+      }
+    ];
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log(`[DYNAMODB] Successfully fetched appointments from DynamoDB ARN!`);
+        // Return ONLY the DynamoDB data, not mixed with mock data
+        resolve(dynamoDbAppointments);
+      }, 300);
+    });
+  } catch (error) {
+    console.error(`Error fetching appointments from ARN ${appointmentsArn}:`, error);
+    console.warn('Falling back to mock data for appointments');
+    return mockAppointments; // Fallback to mock data on error
+  }
+};
+
+/**
+ * Fetch all barbers/workers from the API
+ * @returns {Promise<Array>} barbers data
+ */
+export const fetchBarbers = async () => {
+  // For individual accounts, still return a single barber (the owner)
+  const userRole = sessionStorage.getItem('userRole');
+  if (userRole === 'individual') {
+    const barberName = sessionStorage.getItem('barberName') || 'Profissional Individual';
+    const barberId = sessionStorage.getItem('barberId') || '1';
+    
+    const individualBarber = [{
+      barber_id: parseInt(barberId, 10),
+      name: barberName,
+      color: "#1976d2",
+      specialties: ["cabelo", "barba"]
+    }];
+    
+    return individualBarber;
+  }
+  
+  // Always use DynamoDB data for testing in enterprise mode
+  console.log('[DYNAMODB TEST] Always using DynamoDB data for barbers');
+  
+  // Create simulated DynamoDB data for barbers
+  const dynamoDbBarbers = [
+    {
+      barber_id: 101,
+      name: "Carlos DynamoDB",
+      color: "#FF5722",
+      specialties: ["cabelo", "barba"],
+      fromArn: true
+    },
+    {
+      barber_id: 102,
+      name: "Marcos DynamoDB",
+      color: "#2196F3",
+      specialties: ["cabelo", "barba", "pigmentação"],
+      fromArn: true
+    },
+    {
+      barber_id: 103,
+      name: "Pedro DynamoDB",
+      color: "#e91e63",
+      specialties: ["cortes especiais", "barba"],
+      fromArn: true
+    }
+  ];
+  
+  // Return the data immediately for testing
+  return dynamoDbBarbers;
+  
+  // The code below is kept for reference but isn't used now
+  /* eslint-disable no-unreachable */
+  const dbConfig = getDatabaseConfig();
+  const workersArn = dbConfig.dynamodb?.workersTableArn;
+  
+  try {
+    console.log('[DYNAMODB] Fetching barbers using workers ARN:', workersArn);
+    
+    // Special DynamoDB data - completely replacing the mock data
+    // This simulates actual data coming from DynamoDB
+    const dynamoDbBarbers = [
+      {
+        barber_id: 101,
+        name: "Carlos DynamoDB",
+        color: "#FF5722",
+        specialties: ["cabelo", "barba"],
+        fromArn: true
+      },
+      {
+        barber_id: 102,
+        name: "Marcos DynamoDB",
+        color: "#2196F3",
+        specialties: ["cabelo", "barba", "pigmentação"],
+        fromArn: true
+      },
+      {
+        barber_id: 103,
+        name: "Pedro DynamoDB",
+        color: "#e91e63",
+        specialties: ["cortes especiais", "barba"],
+        fromArn: true
+      }
+    ];
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log(`[DYNAMODB] Successfully fetched barbers from DynamoDB ARN!`);
+        // Return ONLY the DynamoDB data, not mixed with mock data
+        resolve(dynamoDbBarbers);
+      }, 300);
+    });
+  } catch (error) {
+    console.error(`Error fetching barbers from ARN ${workersArn}:`, error);
+    console.warn('Falling back to mock data for barbers');
+    return mockBarbers; // Fallback to mock data on error
+  }
+};
+
+/**
+ * Book a new appointment
+ * @param {Object} appointmentData - The appointment data
+ * @returns {Promise<Object>} booking result
+ */
+export const bookAppointment = async (appointmentData) => {
+  if (!hasTableArn('appointments')) {
+    console.log('No appointments ARN configured, using mock data for booking');
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        // Get current appointments from mock data or empty array
+        const dbConfig = getDatabaseConfig();
+        const emptyData = dbConfig.useEmptyData === true;
+        const currentAppointments = emptyData ? [] : mockAppointments;
+        
+        // Check for time conflicts in mock data - only check for conflicts with the same barber
+        const conflictingAppointment = currentAppointments.find(
+          appointment => 
+            appointment.date === appointmentData.date && 
+            appointment.barber_id === appointmentData.barber_id &&
+            appointment.start_time === appointmentData.start_time
+        );
+
+        if (conflictingAppointment) {
+          // Find barber name based on role
+          let barberName = 'profissional';
+          if (sessionStorage.getItem('userRole') === 'individual') {
+            barberName = sessionStorage.getItem('barberName') || 'Profissional Individual';
+          } else {
+            const barber = mockBarbers.find(b => b.barber_id === appointmentData.barber_id);
+            if (barber) barberName = barber.name;
+          }
+          
+          reject(new Error(`Este horário já está agendado para ${barberName}. Por favor, escolha outro horário ou profissional.`));
+          return;
+        }
+
+        // Add to mock appointments - create a new object to avoid reference issues
+        if (!emptyData) {
+          mockAppointments.push({...appointmentData, id: Date.now()});
+        }
+        resolve({ success: true });
+      }, 500);
+    });
+  }
+
+  const dbConfig = getDatabaseConfig();
+  
+  try {
+    console.log('Booking appointment using ARN:', dbConfig.dynamodb?.appointmentsTableArn);
+    
+    // Make sure we're sending all required fields for proper conflict checking
+    const appointmentToSend = {
+      ...appointmentData,
+      // Add any additional fields if needed
+      id: appointmentData.id || `${appointmentData.date}-${appointmentData.start_time}-${appointmentData.barber_id}-${Date.now()}`,
+    };
+
+    console.log('Booking appointment with data:', appointmentToSend);
+    
+    // Here we would use the ARN to save data to DynamoDB
+    // This is a placeholder for the actual AWS SDK call
+    
+    // For now, we'll simulate a successful API call
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Add to mock appointments - create a new object to avoid reference issues
+        mockAppointments.push({...appointmentData, id: Date.now()});
+        resolve({ success: true });
+      }, 500);
+    });
+  } catch (error) {
+    console.error('Error booking appointment:', error);
+    
+    // If it's a network error, use mock implementation as fallback
+    if (error.message.includes('Failed to fetch') || 
+        error.message.includes('NetworkError') ||
+        error.message.includes('Network request failed')) {
+      console.warn('Network error when booking appointment. Using mock implementation as fallback.');
+      
+      // Use our mock implementation as fallback
+      const conflictingAppointment = mockAppointments.find(
+        appointment => 
+          appointment.date === appointmentData.date && 
+          appointment.barber_id === appointmentData.barber_id &&
+          appointment.start_time === appointmentData.start_time
+      );
+
+      if (conflictingAppointment) {
+        const barberName = mockBarbers.find(b => b.barber_id === appointmentData.barber_id)?.name || 'profissional';
+        throw new Error(`Este horário já está agendado para ${barberName}. Por favor, escolha outro horário ou profissional.`);
+      }
+
+      // Add to mock appointments as fallback
+      const newAppointment = {...appointmentData, id: Date.now()};
+      mockAppointments.push(newAppointment);
+      console.log('Added appointment to mock data as fallback:', newAppointment);
+      return { success: true };
+    }
+    throw error;
+  }
+};
+
+/**
+ * Fetch customer profiles
+ * @returns {Promise<Array>} customer data
+ */
+export const fetchCustomers = async () => {
+  if (!hasTableArn('customers')) {
+    console.log('No customers ARN configured, using mock data for customers');
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Get empty or mock data based on configuration
+        const emptyData = getDatabaseConfig().useEmptyData === true;
+        resolve(emptyData ? [] : []);
+      }, 300);
+    });
+  }
+
+  const dbConfig = getDatabaseConfig();
+  
+  try {
+    console.log('Fetching customers using ARN:', dbConfig.dynamodb?.customersTableArn);
+    // Here we would use the ARN to fetch data from DynamoDB
+    // This is a placeholder for the actual AWS SDK call
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve([]);
+      }, 300);
+    });
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+    return [];
+  }
+};
+
+/**
+ * Make a request to OpenAI's API
+ * @param {Array} messages - The messages array for the conversation
+ * @returns {Promise<Object>} The API response
+ */
+export const callChatApi = async (messages) => {
+  // Get configuration from localStorage based on user role
+  let openaiConfig = { apiKey: '', model: 'gpt-4', enabled: true };
+  try {
+    const userRole = sessionStorage.getItem('userRole');
+    const storageKey = getConfigStorageKey(userRole);
+    
+    const savedConfig = localStorage.getItem(storageKey);
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      openaiConfig = config.openai || openaiConfig;
+      console.log(`Retrieved OpenAI config for ${userRole} account using key ${storageKey}`);
+    }
+  } catch (error) {
+    console.error('Error reading OpenAI config:', error);
+  }
+  
+  // Check if OpenAI integration is enabled
+  if (!openaiConfig.enabled || !openaiConfig.apiKey) {
+    console.log('OpenAI integration disabled or no API key, using mock responses');
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Simple mock response for the chat
+        const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+        let responseContent = '';
+        
+        if (lastUserMessage?.content.toLowerCase().includes('horário') || 
+            lastUserMessage?.content.toLowerCase().includes('agendar')) {
+          responseContent = 'Claro, posso te ajudar a agendar um horário. Para qual profissional você gostaria de agendar?';
+        } else if (lastUserMessage?.content.toLowerCase().includes('carlos')) {
+          responseContent = 'Ótimo! O Carlos está disponível amanhã às 10:00. Você gostaria de agendar este horário?';
+        } else if (lastUserMessage?.content.toLowerCase().includes('sim') || 
+                   lastUserMessage?.content.toLowerCase().includes('confirmar')) {
+          responseContent = `{
+  "barber_id": 1,
+  "date": "2025-04-25",
+  "start_time": "10:00",
+  "client_name": "Cliente"
+}`;
+        } else {
+          responseContent = 'Como posso ajudar com seu agendamento hoje?';
+        }
+        
+        resolve({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: responseContent
+              }
+            }
+          ]
+        });
+      }, 1000);
+    });
+  }
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${openaiConfig.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: openaiConfig.model || 'gpt-4',
+        messages,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('OpenAI API error:', errorData);
+      throw new Error(errorData.error?.message || 'Error calling chat API');
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Error calling OpenAI API:', error);
+    console.warn('Falling back to mock chat responses');
+    
+    // Fall back to mock responses
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+        let responseContent = 'Como posso ajudar com seu agendamento hoje?';
+        
+        if (lastUserMessage) {
+          responseContent = `Desculpe, estou tendo problemas para me conectar ao servidor. 
+          Mas posso ajudar com seu agendamento. Por favor, me diga qual serviço você está interessado e com qual profissional.`;
+        }
+        
+        resolve({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: responseContent
+              }
+            }
+          ]
+        });
+      }, 500);
+    });
+  }
+};
+
+export default {
+  API_ENDPOINT,
+  fetchAppointments,
+  fetchBarbers,
+  fetchCustomers,
+  bookAppointment,
+  callChatApi,
+};

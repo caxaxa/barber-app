@@ -1,48 +1,47 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Paper, Box, Zoom } from '@mui/material';
+import { Box, Paper, IconButton } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import Chatbox from './Chatbox';
-import { useConfig } from '../../context/ConfigContext';
 
-export default function FloatingChat({ open, barbers = [], onNewAppointment }) {
-  const { config } = useConfig();
+export default function FloatingChat({ open, onClose, onNewAppointment, barbers = [], isEnterpriseAccount = true }) {
   if (!open) return null;
 
   return (
-    <Zoom in={open}>
-      <Paper
-        elevation={8}
-        sx={{
-          position: 'fixed',
-          bottom: 80,
-          right: 16,
-          width: 360,
-          height: 550,
-          display: 'flex',
-          flexDirection: 'column',
-          zIndex: 9999,
-          borderRadius: 2,
-          overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-          border: `2px solid ${config?.theme?.primaryColor || '#1976d2'}`
-        }}
-        aria-hidden={!open}
-      >
-        <Box sx={{ flex: 1, overflow: 'hidden' }}>
-          <Chatbox onNewAppointment={onNewAppointment} barbers={barbers} />
-        </Box>
-      </Paper>
-    </Zoom>
+    <Paper
+      elevation={8}
+      sx={{
+        position: 'fixed',
+        bottom: 80,
+        right: 20,
+        width: { xs: '90%', sm: 400 },
+        height: 500,
+        overflow: 'hidden',
+        borderRadius: 3,
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column'
+      }}
+    >
+      <Box sx={{ position: 'absolute', top: 5, right: 5, zIndex: 100 }}>
+        <IconButton size="small" aria-label="close chat" onClick={() => onClose()}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </Box>
+      
+      <Chatbox 
+        onNewAppointment={onNewAppointment} 
+        barbers={barbers}
+        isEnterpriseAccount={isEnterpriseAccount}
+      />
+    </Paper>
   );
 }
 
 FloatingChat.propTypes = {
   open: PropTypes.bool.isRequired,
-  barbers: PropTypes.arrayOf(
-    PropTypes.shape({
-      barber_id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-      name: PropTypes.string.isRequired,
-    })
-  ),
   onNewAppointment: PropTypes.func.isRequired,
+  barbers: PropTypes.array,
+  isEnterpriseAccount: PropTypes.bool,
+  onClose: PropTypes.func
 };
