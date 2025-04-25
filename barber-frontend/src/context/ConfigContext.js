@@ -192,17 +192,32 @@ export function ConfigProvider({ children }) {
     localStorage.setItem('appConfig', JSON.stringify(config));
   }, [config]);
 
-  // Authentication
+  // Authentication with role-based access
   const login = (username, password) => {
+    // Admin authentication
     if (username === config.auth.username && password === config.auth.password) {
       setIsAuthenticated(true);
-      return true;
+      sessionStorage.setItem('userRole', 'admin');
+      return { success: true, role: 'admin' };
     }
-    return false;
+    
+    // Individual barber authentication
+    if (username === "barber" && password === "barber123") {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('userRole', 'barber');
+      sessionStorage.setItem('barberId', '1'); // Hardcoded for the example, would be dynamic in a real system
+      sessionStorage.setItem('barberName', 'Carlos Silva'); // Hardcoded for the example
+      return { success: true, role: 'barber' };
+    }
+    
+    return { success: false };
   };
 
   const logout = () => {
     setIsAuthenticated(false);
+    sessionStorage.removeItem('userRole');
+    sessionStorage.removeItem('barberId');
+    sessionStorage.removeItem('barberName');
   };
 
   // Update configuration

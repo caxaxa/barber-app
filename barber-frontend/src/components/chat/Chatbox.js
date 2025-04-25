@@ -299,7 +299,14 @@ VOCÃŠ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERIÃ
       
       // Skip closed days
       if (!closedDayIndices.includes(date.getDay())) {
-        const formattedDate = date.toISOString().split('T')[0];
+        // Get date components in local timezone
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        
+        // Format date as YYYY-MM-DD without using toISOString() to avoid timezone issues
+        const formattedDate = `${year}-${month}-${day}`;
+        
         const displayDate = date.toLocaleDateString('pt-BR', { 
           weekday: 'short', 
           day: '2-digit', 
@@ -308,7 +315,8 @@ VOCÃŠ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERIÃ
         
         dates.push({
           value: formattedDate,
-          display: displayDate
+          display: displayDate,
+          jsDate: new Date(date) // Store a copy of the JS Date object for reliable formatting
         });
       }
     }

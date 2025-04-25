@@ -57,6 +57,7 @@ if (dbConfig.type === 'dynamodb') {
 
 const APPOINTMENTS_TABLE = dbConfig.dynamodb.appointmentsTable;
 const BARBERS_TABLE = dbConfig.dynamodb.barbersTable;
+const BARBER_APPOINTMENTS_TABLE = 'barber'; // Table for individual barber appointments (no barber_id column)
 
 // Middleware
 app.use(cors({
@@ -289,6 +290,198 @@ function timeToMinutes(timeString) {
   const [hours, minutes] = timeString.split(':').map(Number);
   return hours * 60 + minutes;
 }
+
+// Endpoint for booking barber-specific appointments (no barber_id)
+app.post('/barber/appointments/book', async (req, res) => {
+  try {
+    const { date, start_time, client_name, duration = 40 } = req.body;
+    
+    // Validate required fields
+    if (!date || !start_time || !client_name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
+      });
+    }
+    
+    // Create appointment ID (date-time)
+    const appointment_id = `${date}-${start_time}`;
+    
+    // The new appointment object
+    const newAppointment = {
+      appointment_id,
+      date,
+      start_time,
+      client_name,
+      duration: duration || 40,
+      created_at: new Date().toISOString()
+    };
+    
+    let existingAppointments = [];
+    
+    // Get existing appointments from the barber-specific table
+    if (dbConfig.type === 'dynamodb') {
+      const conflictParams = {
+        TableName: BARBER_APPOINTMENTS_TABLE,
+        FilterExpression: '#date = :date',
+        ExpressionAttributeNames: {
+          '#date': 'date'
+        },
+        ExpressionAttributeValues: {
+          ':date': date
+        }
+      };
+      
+      try {
+        const result = await dynamodb.scan(conflictParams).promise();
+        existingAppointments = result.Items;
+      } catch (error) {
+        console.error('Error scanning barber appointments table:', error);
+        // If table doesn't exist, log it but continue (we'll try to create the appointment)
+        console.log('Barber table may not exist, will attempt to create appointment');
+      }
+    } else if (dbConfig.type === 'local' && dbConfig.local.enabled) {
+      // For local storage, we'll use a separate JSON file for barber appointments
+      try {
+        const barberAppointmentsPath = path.join(dbConfig.local.dataPath, 'barber_appointments.json');
+        if (fs.existsSync(barberAppointmentsPath)) {
+          const data = fs.readFileSync(barberAppointmentsPath, 'utf8');
+          existingAppointments = JSON.parse(data);
+        } else {
+          // Create the file if it doesn't exist
+          fs.writeFileSync(barberAppointmentsPath, JSON.stringify([], null, 2));
+          existingAppointments = [];
+        }
+      } catch (error) {
+        console.error('Error reading local barber appointments:', error);
+        existingAppointments = [];
+      }
+    }
+    
+    // Convert appointment times to minutes for easier comparison
+    const appointmentStartMinutes = timeToMinutes(start_time);
+    const appointmentEndMinutes = appointmentStartMinutes + (duration || 40);
+    
+    // Check if any existing appointment overlaps with the requested time
+    const hasConflict = existingAppointments.some(appointment => {
+      const existingStartMinutes = timeToMinutes(appointment.start_time);
+      const existingEndMinutes = existingStartMinutes + (appointment.duration || 40);
+      
+      // Check if the appointments overlap
+      return (
+        (appointmentStartMinutes >= existingStartMinutes && appointmentStartMinutes < existingEndMinutes) ||
+        (appointmentEndMinutes > existingStartMinutes && appointmentEndMinutes <= existingEndMinutes) ||
+        (appointmentStartMinutes <= existingStartMinutes && appointmentEndMinutes >= existingEndMinutes)
+      );
+    });
+    
+    if (hasConflict) {
+      return res.status(409).json({
+        success: false,
+        message: 'There is a scheduling conflict with an existing appointment'
+      });
+    }
+    
+    // Save the appointment
+    if (dbConfig.type === 'dynamodb') {
+      const params = {
+        TableName: BARBER_APPOINTMENTS_TABLE,
+        Item: newAppointment
+      };
+      
+      try {
+        await dynamodb.put(params).promise();
+      } catch (error) {
+        console.error('Error putting item in barber table:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Error saving appointment to barber table',
+          error: error.message
+        });
+      }
+    } else if (dbConfig.type === 'local' && dbConfig.local.enabled) {
+      const barberAppointmentsPath = path.join(dbConfig.local.dataPath, 'barber_appointments.json');
+      let allAppointments = [];
+      
+      try {
+        if (fs.existsSync(barberAppointmentsPath)) {
+          const data = fs.readFileSync(barberAppointmentsPath, 'utf8');
+          allAppointments = JSON.parse(data);
+        }
+        
+        allAppointments.push(newAppointment);
+        fs.writeFileSync(barberAppointmentsPath, JSON.stringify(allAppointments, null, 2));
+      } catch (error) {
+        console.error('Error saving local barber appointment:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Error saving appointment to local storage',
+          error: error.message
+        });
+      }
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: 'Barber appointment booked successfully',
+      appointment: newAppointment
+    });
+  } catch (error) {
+    console.error('Error booking barber appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error booking barber appointment',
+      error: error.message
+    });
+  }
+});
+
+// Get all barber appointments
+app.get('/barber/appointments/all', async (req, res) => {
+  try {
+    let appointments = [];
+    
+    if (dbConfig.type === 'dynamodb') {
+      try {
+        const params = {
+          TableName: BARBER_APPOINTMENTS_TABLE
+        };
+        
+        const data = await dynamodb.scan(params).promise();
+        appointments = data.Items;
+      } catch (error) {
+        console.error('Error scanning barber appointments table:', error);
+        // If table doesn't exist, return empty array
+        appointments = [];
+      }
+    } else if (dbConfig.type === 'local' && dbConfig.local.enabled) {
+      try {
+        const barberAppointmentsPath = path.join(dbConfig.local.dataPath, 'barber_appointments.json');
+        if (fs.existsSync(barberAppointmentsPath)) {
+          const data = fs.readFileSync(barberAppointmentsPath, 'utf8');
+          appointments = JSON.parse(data);
+        } else {
+          appointments = [];
+        }
+      } catch (error) {
+        console.error('Error reading local barber appointments:', error);
+        appointments = [];
+      }
+    }
+    
+    res.json({
+      success: true,
+      appointments
+    });
+  } catch (error) {
+    console.error('Error fetching barber appointments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching barber appointments',
+      error: error.message
+    });
+  }
+});
 
 // Add an endpoint to update database configuration
 app.post('/admin/db-config', async (req, res) => {

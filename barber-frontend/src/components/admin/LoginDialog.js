@@ -20,8 +20,9 @@ export default function LoginDialog({ open, onClose }) {
   const [error, setError] = useState('');
 
   const handleLogin = () => {
-    if (login(username, password)) {
-      onClose();
+    const result = login(username, password);
+    if (result.success) {
+      onClose(result.role); // Pass the role to the parent component
       setUsername('');
       setPassword('');
       setError('');
