@@ -18,7 +18,7 @@ import { useConfig } from '../../context/ConfigContext';
 /**
  * Chatbox component that allows users to book appointments via a chat interface
  */
-export default function Chatbox({ onNewAppointment, barbers = [], isEnterpriseAccount = true }) {
+export default function Chatbox({ onNewAppointment, barbers, isEnterpriseAccount, freeModeAllowed }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,6 +28,7 @@ export default function Chatbox({ onNewAppointment, barbers = [], isEnterpriseAc
   const [showTimeOptions, setShowTimeOptions] = useState(false);
   const [availableTimes, setAvailableTimes] = useState([]);
   const [availableDates, setAvailableDates] = useState([]);
+
   
   // Track booking flow state
   const [bookingState, setBookingState] = useState({
@@ -38,7 +39,7 @@ export default function Chatbox({ onNewAppointment, barbers = [], isEnterpriseAc
     selectedDate: '',
     selectedTime: ''
   });
-  
+  const showConfirmOptions = bookingState.step === 6;
   const messagesEndRef = useRef(null);
   const { showNotification } = useNotification();
   const { config } = useConfig();
@@ -54,8 +55,9 @@ export default function Chatbox({ onNewAppointment, barbers = [], isEnterpriseAc
   
   // Helper function to get guided mode setting from config
   const isGuidedMode = () => {
-    const guidedMode = config?.chatbot?.guidedMode !== false; // Default to guided if not specified
-    console.log("Current chat mode:", guidedMode ? "Guided" : "Free", config?.chatbot);
+    if (!freeModeAllowed) return true;
+  
+    const guidedMode = config?.chatbot?.guidedMode !== false; // default: guided
     return guidedMode;
   };
 
@@ -530,6 +532,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
         // Update UI
         setShowServiceOptions(false);
         setShowBarberOptions(true);
+        setShowTimeOptions(false);
       }
       
       setMessages(prev => [...prev, assistantResponse]);
@@ -640,7 +643,8 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       ]);
       
       // Format date for display in dd/mm/yyyy format
-      const selectedDate = new Date(bookingState.selectedDate);
+      const [y, m, d] = bookingState.selectedDate.split('-').map(Number);
+      const selectedDate = new Date(y, m - 1, d);    // use this to fix the CGR UTC-4 bug
       const day = selectedDate.getDate().toString().padStart(2, '0');
       const month = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
       const year = selectedDate.getFullYear();
@@ -649,7 +653,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       // Add assistant response for confirmation
       const assistantResponse = { 
         role: 'assistant', 
-        content: `Para confirmar, você deseja agendar ${bookingState.selectedService} com ${bookingState.selectedBarber.name} no dia ${formattedDate} às ${time}. Está correto? (Responda sim para confirmar)` 
+        content: `Para confirmar, você deseja agendar ${bookingState.selectedService} com ${bookingState.selectedBarber.name} no dia ${formattedDate} às ${time}. Está correto?` 
       };
       
       setMessages(prev => [...prev, assistantResponse]);
@@ -1161,6 +1165,32 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             </Box>
           </Box>
         )}
+
+        {/* ✔ / ✖ Confirmation buttons */}
+        {isGuidedMode() && bookingState.step === 6 && (
+          <Box sx={{ mt: 2, mb: 2 }}>
+            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
+              Confirmar agendamento?
+            </Typography>
+            <Stack direction="row" spacing={2}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => sendMessage('sim')}
+              >
+                Sim
+              </Button>
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={() => sendMessage('não')}
+              >
+                Não
+              </Button>
+            </Stack>
+          </Box>
+        )}
+        
       </Box>
       
       {/* Input Area */}
@@ -1238,5 +1268,6 @@ Chatbox.propTypes = {
       name: PropTypes.string.isRequired,
     })
   ),
-  isEnterpriseAccount: PropTypes.bool
+  isEnterpriseAccount: PropTypes.bool,   // ← add this line
+  freeModeAllowed: PropTypes.bool,
 };

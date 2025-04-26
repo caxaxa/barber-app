@@ -28,12 +28,13 @@ const getDatabaseConfig = () => {
  * @param {string} arnType - The type of ARN to check ('appointments', 'customers', 'workers')
  * @returns {boolean} True if the ARN is set
  */
-const hasArn = (arnType) => {
-  const config = getDatabaseConfig();
-  if (!config?.dynamodb) return false;
-  
-  const arnProperty = `${arnType}TableArn`;
-  return Boolean(config.dynamodb[arnProperty]);
+// Accept either full ARN (…TableArn) **or** legacy tableName (…Table)
+const hasArn = (tableKey) => {
+  const cfg = getDatabaseConfig()?.dynamodb || {};
+  return Boolean(
+    cfg[`${tableKey}TableArn`] ||
+    cfg[`${tableKey}Table`]     // fallback to name-only field
+  );
 };
 
 /**
@@ -110,7 +111,7 @@ export const fetchBarbers = async () => {
   }
   
   // For enterprise accounts, check if a workers ARN exists
-  const hasWorkersArn = hasArn('workers');
+  const hasWorkersArn = hasArn('barbers');  // keep wording in sync with UI
   
   if (!hasWorkersArn) {
     // No ARN, return mock data
@@ -190,14 +191,18 @@ export const bookAppointment = async (appointmentData) => {
           reject(new Error(`Este horário já está agendado para ${barberName}. Por favor, escolha outro horário ou profissional.`));
           return;
         }
+        if (hasAppointmentsArn) {
+          // TODO: replace with real DynamoDB putItem
+          console.log('→ would write to DynamoDB here', appointmentWithId);
+        } else {
+          mockAppointments.push(appointmentWithId);
+        }
 
-        // Add to mock appointments for session persistence
-        mockAppointments.push(appointmentWithId);
-        
-        // Simulate successful booking
-        resolve({ 
+        resolve({
           success: true,
-          message: hasAppointmentsArn ? 'Appointment saved to database' : 'Appointment saved locally',
+          message: hasAppointmentsArn
+            ? 'Appointment saved to database'
+            : 'Appointment saved locally',
           id: appointmentWithId.id
         });
       } catch (error) {

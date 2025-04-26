@@ -1,10 +1,16 @@
 import React from 'react';
+import { useConfig } from '../../context/ConfigContext';   // ⬅ add
 import PropTypes from 'prop-types';
 import { Box, Paper, IconButton } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import Chatbox from './Chatbox';
 
+
+
 export default function FloatingChat({ open, onClose, onNewAppointment, barbers = [], isEnterpriseAccount = true }) {
+  //1.  Read config and decide if free-chat is allowed
+  const { config } = useConfig();
+  const freeModeAllowed = !!config?.openai?.apiKey;
   if (!open) return null;
 
   return (
@@ -30,9 +36,10 @@ export default function FloatingChat({ open, onClose, onNewAppointment, barbers 
       </Box>
       
       <Chatbox 
-        onNewAppointment={onNewAppointment} 
-        barbers={barbers}
-        isEnterpriseAccount={isEnterpriseAccount}
+         onNewAppointment={onNewAppointment} 
+         barbers={barbers}
+         isEnterpriseAccount={isEnterpriseAccount}
+         freeModeAllowed={freeModeAllowed}   // ⬅ pass new prop
       />
     </Paper>
   );
