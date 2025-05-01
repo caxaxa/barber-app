@@ -97,7 +97,7 @@ export default function Chatbox({ onNewAppointment, barbers, isEnterpriseAccount
         // In guided mode, start with assistant greeting
         const assistantGreeting = { 
           role: 'assistant', 
-          content: "Olá! Sou a " + (config?.assistant?.name || "Amanda") + ", assistente virtual da " + (config?.business?.name || "Barbearia Elite") + ". Para começar, poderia me informar seu nome, por favor?" 
+          content: "Olá! Sou a " + (config?.assistant?.name || "Amanda") + ", assistente virtual de " + (config?.business?.name || "Barbearia Elite") + ". Para começar, poderia me informar seu nome, por favor?" 
         };
         setMessages([
           { role: 'system', content: getPromptText() },
@@ -119,7 +119,22 @@ export default function Chatbox({ onNewAppointment, barbers, isEnterpriseAccount
     // but intentionally omit getPromptText as it would cause unnecessary reruns
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, barberNames, formattedDate]);
-
+  useEffect(() => {
+    /* run when:
+         • you’re in guided mode
+         • enterprise account
+         • you’re already at step 3 (service chosen)
+         • and barbers have finally been fetched (length > 0)
+    */
+    if (
+      isGuidedMode() &&
+      isEnterpriseAccount &&
+      bookingState.step === 3 &&
+      barbers.length > 0
+    ) {
+      setShowBarberOptions(true);   // display the buttons now
+    }
+  }, [barbers.length, isEnterpriseAccount, bookingState.step]);
   const getPromptText = () => {
     const businessType = config?.business?.type?.toUpperCase() || 'BARBEARIA';
     const businessName = config?.business?.name || 'Barbearia Elite';
@@ -285,7 +300,6 @@ ${isIndividual ? '' : `- Quando o usuário seleciona um ${config?.professionals?
 VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERIÊNCIA DE AGENDAMENTO PERFEITA.
 `;
   };
-
   // Function to generate available dates (next 14 days, excluding closed days)
   const generateDateOptions = () => {
     const dates = [];
@@ -673,6 +687,19 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     if (!textToSend.trim()) return;
     
     const userMessage = { role: 'user', content: textToSend };
+
+    if (isGuidedMode() && bookingState.step === 2) {
+      const typed = textToSend.trim().toLowerCase();
+      const matched = commonServices.find(
+        s => s.toLowerCase() === typed
+      );
+  
+      if (matched) {
+        setInput('');               // limpa o campo
+        handleServiceSelect(matched); // faz exatamente o que o chip faria
+        return;                      // sai de sendMessage; nada mais a fazer
+      }
+    }
     
     // Handle differently based on guided vs free mode
     if (isGuidedMode()) {
@@ -746,11 +773,12 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             console.log("Appointment creation result:", result);
             
             // Format date for better readability in dd/mm/yyyy format
-            const selectedDate = new Date(bookingState.selectedDate);
+            const [y, m, d] = bookingState.selectedDate.split('-').map(Number);
+            const selectedDate = new Date(y, m - 1, d);    // use this to fix the CGR UTC-4 bug
             const day = selectedDate.getDate().toString().padStart(2, '0');
             const month = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
             const year = selectedDate.getFullYear();
-            const formattedDate = `${day}/${month}/${year}`;
+            const formattedDate = `${day}/${month}/${year}`;            
             
             // Success message
             const successResponse = {

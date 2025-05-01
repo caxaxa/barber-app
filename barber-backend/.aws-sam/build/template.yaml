@@ -1,56 +1,97 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Barber Appointment Scheduling Backend
-Parameters:
-  AppointmentsTableName:
-    Type: String
-    Description: Name of the pre-existing DynamoDB table for appointments
-    Default: Appointments
-  BarbersTableName:
-    Type: String
-    Description: Name of the pre-existing DynamoDB table for barbers
-    Default: Barbers
+Description: "Barber Appointment Scheduling \u2013 single-table, multi-tenant backend\n"
 Globals:
   Api:
     Cors:
-      AllowOrigin: '''*'''
+      AllowOrigins: '''*'''
       AllowMethods: '''OPTIONS,GET,POST'''
       AllowHeaders: '''Content-Type'''
 Resources:
+  AppointmentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: shop_id
+        AttributeType: S
+      - AttributeName: sort_key
+        AttributeType: S
+      KeySchema:
+      - AttributeName: shop_id
+        KeyType: HASH
+      - AttributeName: sort_key
+        KeyType: RANGE
+      TimeToLiveSpecification:
+        Enabled: false
+  BarbersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: shop_id
+        AttributeType: S
+      - AttributeName: barber_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: shop_id
+        KeyType: HASH
+      - AttributeName: barber_id
+        KeyType: RANGE
+  ConfigsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: shop_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: shop_id
+        KeyType: HASH
   BarberApiFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: BarberApiFunction
       Handler: app.lambda_handler
-      Runtime: python3.8
+      Runtime: python3.11
       Environment:
         Variables:
           APPOINTMENTS_TABLE:
-            Ref: AppointmentsTableName
+            Ref: AppointmentsTable
           BARBERS_TABLE:
-            Ref: BarbersTableName
+            Ref: BarbersTable
+          CONFIGS_TABLE:
+            Ref: ConfigsTable
       Policies:
-      - AmazonDynamoDBFullAccess
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: AppointmentsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: BarbersTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: ConfigsTable
       Events:
-        GetBarbers:
-          Type: Api
+        ApiCatchAll:
+          Type: HttpApi
           Properties:
-            Path: /barbers
-            Method: GET
-        GetAppointments:
-          Type: Api
-          Properties:
-            Path: /appointments
-            Method: GET
-        GetAllAppointments:
-          Type: Api
-          Properties:
-            Path: /appointments/all
-            Method: GET
-        BookAppointment:
-          Type: Api
-          Properties:
-            Path: /appointments/book
-            Method: POST
+            Path: /{proxy+}
+            Method: ANY
     Metadata:
       SamResourceId: BarberApiFunction
+Outputs:
+  ApiUrl:
+    Description: Base URL of the deployed API Gateway (implicit HttpApi)
+    Value:
+      Fn::GetAtt:
+      - ServerlessHttpApi
+      - ApiEndpoint
+  AppointmentsTableName:
+    Description: Physical name of the DynamoDB table for appointments
+    Value:
+      Ref: AppointmentsTable
+  BarbersTableName:
+    Description: Physical name of the DynamoDB table for barbers
+    Value:
+      Ref: BarbersTable

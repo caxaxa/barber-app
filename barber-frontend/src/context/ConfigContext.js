@@ -1,5 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import { fetchConfig, saveConfig } from '../services/api';
+
+import {
+    signIn,
+    signOut,
+    signUp,
+    getSession
+  } from '../services/cognito';
+
+
+
 
 // Default configuration
 const defaultConfig = {
@@ -212,51 +223,73 @@ export const useConfig = () => {
 };
 
 export function ConfigProvider({ children }) {
-  // Get the config storage key based on user role
-  const getConfigStorageKey = (role) => {
-    switch (role) {
-      case 'enterprise':
-        return 'enterpriseAppConfig';
-      case 'individual':
-        return 'individualAppConfig';
-      default:
-        return 'appConfig';
-    }
-  };
+  // Config key now based on shopId (username)
+  const getConfigStorageKey = (shop) => `appConfig_${shop || 'default'}`;
 
-  const [userRole, setUserRole] = useState(() => {
-    return sessionStorage.getItem('userRole') || null;
-  });
+  const [userRole,  setUserRole]  = useState(() => sessionStorage.getItem('userRole')  || null);
+  const [shopId,    setShopId]    = useState(() => sessionStorage.getItem('shopId')    || null);
   
   // Initialize state with saved config or default based on role
   const [config, setConfig] = useState(() => {
-    const role = sessionStorage.getItem('userRole');
-    const storageKey = getConfigStorageKey(role);
-    const savedConfig = localStorage.getItem(storageKey);
-    
-    if (savedConfig) {
-      console.log(`Loading saved config for ${role || 'default'} user`);
-      return JSON.parse(savedConfig);
-    }
-    
-    // Use appropriate default based on role
-    if (role === 'enterprise') {
-      return defaultEnterpriseConfig;
-    } else if (role === 'individual') {
-      return defaultIndividualConfig;
-    }
-    
-    return defaultConfig;
-  });
+      const shop = sessionStorage.getItem('shopId');
+      const storageKey = getConfigStorageKey(shop);
+      const saved = localStorage.getItem(storageKey);
+      if (saved) return JSON.parse(saved);
+  
+      // Fallback based on role
+      const role = sessionStorage.getItem('userRole');
+      if (role === 'enterprise') return defaultEnterpriseConfig;
+      if (role === 'individual') return defaultIndividualConfig;
+      return defaultConfig;
+    });
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  useEffect(() => {
+    getSession()
+      .then(session => {
+        const payload     = session.getIdToken().payload;
+        const username    = payload['cognito:username'];
+        const accountType = payload['custom:accountType'] || 'individual';
+        setIsAuthenticated(true);
+        setUserRole(accountType);
+        setShopId(username);
+        sessionStorage.setItem('userRole', accountType);
+        sessionStorage.setItem('shopId',   username);
+        // now fetch + merge your config from DynamoDB…
+      })
+      .catch(() => {
+        // no session => not logged in
+      });
+  }, []);
+  
+  
+
+  +  /* ────────────────────────────────────────────────────────────────
+  +     1)  When the user becomes authenticated (or changes role), pull
+  +         the server-side config once and merge it over whatever we
+  +         already have in state. If there’s nothing stored yet on the
+  +         server, that GET just returns {}, so the defaults stay.
+  +  ───────────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    (async () => {
+      try {
+        const remote = await fetchConfig();          // GET /config?shop_id=…
+        if (remote && Object.keys(remote).length) {
+          setConfig(prev => ({ ...prev, ...remote }));
+        }
+      } catch (err) {
+        console.error('Could not load remote config → keep local', err);
+      }
+    })();
+  }, [isAuthenticated, userRole]);
   // Save config to localStorage whenever it changes, using role-specific key
   useEffect(() => {
-    const storageKey = getConfigStorageKey(userRole);
-    console.log(`Saving config for ${userRole || 'default'} user to ${storageKey}`);
-    localStorage.setItem(storageKey, JSON.stringify(config));
-  }, [config, userRole]);
+      const storageKey = getConfigStorageKey(shopId);
+      console.log(`Saving config for shop=${shopId} to ${storageKey}`);
+      localStorage.setItem(storageKey, JSON.stringify(config));
+    }, [config, shopId]);
 
   // Check for existing authentication on mount
   useEffect(() => {
@@ -268,73 +301,30 @@ export function ConfigProvider({ children }) {
   }, []);
 
   // Authentication with role-based access
-  const login = (username, password) => {
-    // Enterprise account authentication
-    if (username === "empresa" && password === "empresa123") {
-      const role = 'enterprise';
-      setIsAuthenticated(true);
-      setUserRole(role);
-      sessionStorage.setItem('userRole', role);
-      
-      // Get enterprise-specific config storage key
-      const storageKey = getConfigStorageKey(role);
-      
-      // Load enterprise default config if first login
-      if (!localStorage.getItem(storageKey)) {
-        console.log(`First login for ${role}, setting default enterprise config`);
-        setConfig(defaultEnterpriseConfig);
-      } else {
-        // Load existing enterprise config
-        const savedConfig = localStorage.getItem(storageKey);
-        setConfig(JSON.parse(savedConfig));
-      }
-      
-      return { success: true, role };
-    }
-    
-    // Individual account authentication
-    if (username === "individual" && password === "individual123") {
-      const role = 'individual';
-      setIsAuthenticated(true);
-      setUserRole(role);
-      sessionStorage.setItem('userRole', role);
-      sessionStorage.setItem('barberId', '1');
-      sessionStorage.setItem('barberName', 'Profissional Individual');
-      
-      // Get individual-specific config storage key
-      const storageKey = getConfigStorageKey(role);
-      
-      // Load individual default config if first login
-      if (!localStorage.getItem(storageKey)) {
-        console.log(`First login for ${role}, setting default individual config`);
-        setConfig(defaultIndividualConfig);
-      } else {
-        // Load existing individual config
-        const savedConfig = localStorage.getItem(storageKey);
-        setConfig(JSON.parse(savedConfig));
-      }
-      
-      return { success: true, role };
-    }
-    
-    // Legacy authentication
-    if (username === config.auth.username && password === config.auth.password) {
-      const role = 'admin';
-      setIsAuthenticated(true);
-      setUserRole(role);
-      sessionStorage.setItem('userRole', role);
-      return { success: true, role };
-    }
-    
-    return { success: false };
-  };
 
-  const logout = () => {
+  const login = async (username, password) => {
+    try {
+      const session = await signIn({ username, password });
+      const accountType = session.getIdToken().payload['custom:accountType'];
+      setIsAuthenticated(true);
+      setShopId(username);
+      setUserRole(accountType);
+      sessionStorage.setItem('shopId', username);
+      sessionStorage.setItem('userRole', accountType);
+      // fetch + merge config…
+      return { success: true };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  };
+  
+    
+
+   const logout = async () => {
+    await signOut();
     setIsAuthenticated(false);
-    setUserRole(null);
-    sessionStorage.removeItem('userRole');
-    sessionStorage.removeItem('barberId');
-    sessionStorage.removeItem('barberName');
+    setShopId(null);
+    // redirect to /signin
   };
 
   // Get current user role
@@ -343,12 +333,19 @@ export function ConfigProvider({ children }) {
   };
 
   // Update configuration
-  const updateConfig = (newConfig) => {
-    setConfig(newConfig);
+  /* ────────────────────────────────────────────────────────────────
+  +     2)  updateConfig → optimistic local update *and* PUT to DynamoDB
+  +  ───────────────────────────────────────────────────────────────── */
+  const updateConfig = async (newConfig) => {
+    setConfig(newConfig);                        // UI feels instant
+    try { await saveConfig(newConfig); }         // PUT /config
+    catch (e) {
+      console.error('saveConfig failed – state is still updated', e);
+    }
   };
 
   // Reset to default configuration based on role
-  const resetConfig = () => {
+  const resetConfig = async () => {
     const role = getUserRole();
     let defaultCfg = defaultConfig;
     
@@ -360,6 +357,9 @@ export function ConfigProvider({ children }) {
     
     setConfig(defaultCfg);
     localStorage.setItem('appConfig', JSON.stringify(defaultCfg));
+    try { await saveConfig(defaultCfg); } catch (e) {
+      console.error('saveConfig after reset failed', e);
+    }
   };
   
   return (

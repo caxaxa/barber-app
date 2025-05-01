@@ -26,7 +26,6 @@ import ThemeConfig from '../components/admin/config/ThemeConfig';
 import TerminologyConfig from '../components/admin/config/TerminologyConfig';
 import MessagesConfig from '../components/admin/config/MessagesConfig';
 import IntegrationConfig from '../components/admin/config/IntegrationConfig';
-import DatabaseConfig from '../components/admin/config/DatabaseConfig';
 import SecurityConfig from '../components/admin/config/SecurityConfig';
 import TestEnvironment from './TestEnvironment';
 
@@ -124,7 +123,6 @@ export default function AdminPage() {
           <Tab label="Terminologia" />
           <Tab label="Mensagens" />
           <Tab label="Integração" />
-          <Tab label="Banco de Dados" />
           <Tab label="Segurança" />
         </Tabs>
       </AppBar>
@@ -158,11 +156,6 @@ export default function AdminPage() {
         {/* Integration Tab */}
         <TabPanel value={tabValue} index={5}>
           <IntegrationConfig />
-        </TabPanel>
-        
-        {/* Database Tab */}
-        <TabPanel value={tabValue} index={6}>
-          <DatabaseConfig isEnterpriseAccount={isEnterpriseAccount} />
         </TabPanel>
         
         {/* Security Settings Tab */}

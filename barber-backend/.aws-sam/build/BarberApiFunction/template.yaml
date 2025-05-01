@@ -1,56 +1,106 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Barber Appointment Scheduling Backend
+Description: >
+  Barber Appointment Scheduling – single-table, multi-tenant backend
 
-Parameters:
-  AppointmentsTableName:
-    Type: String
-    Description: "Name of the pre-existing DynamoDB table for appointments"
-    Default: "Appointments"
-
-  BarbersTableName:
-    Type: String
-    Description: "Name of the pre-existing DynamoDB table for barbers"
-    Default: "Barbers"
-
+######################################################################
+# 1)  Globals – CORS applies to the implicit HttpApi created by SAM
+######################################################################
 Globals:
   Api:
+    # This block is applied to the implicit **ServerlessHttpApi**
     Cors:
-      AllowOrigin: "'*'"
+      AllowOrigins: "'*'"
       AllowMethods: "'OPTIONS,GET,POST'"
       AllowHeaders: "'Content-Type'"
 
+######################################################################
+# 2)  DynamoDB tables  (managed by CloudFormation)
+######################################################################
 Resources:
+
+  AppointmentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: shop_id          # partition key – tenant / account
+          AttributeType: S
+        - AttributeName: sort_key         # sort key  "2025-05-18#09:00#barber-1"
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shop_id
+          KeyType: HASH
+        - AttributeName: sort_key
+          KeyType: RANGE
+      # Enable TTL later if you wish
+      TimeToLiveSpecification:
+        Enabled: false
+
+  BarbersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: shop_id
+          AttributeType: S
+        - AttributeName: barber_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shop_id
+          KeyType: HASH
+        - AttributeName: barber_id
+          KeyType: RANGE
+
+  ConfigsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: shop_id     # PK only
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shop_id
+          KeyType: HASH
+
+######################################################################
+# 3)  Lambda & HttpApi
+######################################################################
   BarberApiFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
       Handler: app.lambda_handler
-      Runtime: python3.8
+      Runtime: python3.11            # keep 3.8 if you prefer, 3.11 is GA
       Environment:
         Variables:
-          APPOINTMENTS_TABLE: !Ref AppointmentsTableName
-          BARBERS_TABLE: !Ref BarbersTableName  # <-- new environment variable
+          APPOINTMENTS_TABLE: !Ref AppointmentsTable
+          BARBERS_TABLE:      !Ref BarbersTable
+          CONFIGS_TABLE:      !Ref ConfigsTable  
       Policies:
-        - AmazonDynamoDBFullAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AppointmentsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BarbersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConfigsTable
       Events:
-        GetBarbers:
-          Type: Api
+        ApiCatchAll:
+          Type: HttpApi               # modern HTTP API (implicit)
           Properties:
-            Path: /barbers
-            Method: GET
-        GetAppointments:
-          Type: Api
-          Properties:
-            Path: /appointments
-            Method: GET
-        GetAllAppointments:
-          Type: Api
-          Properties:
-            Path: /appointments/all
-            Method: GET
-        BookAppointment:
-          Type: Api
-          Properties:
-            Path: /appointments/book
-            Method: POST
+            Path: /{proxy+}
+            Method: ANY
+
+######################################################################
+# 4)  Outputs – easy copy-&-paste into .env or Postman
+######################################################################
+Outputs:
+  ApiUrl:
+    Description: Base URL of the deployed API Gateway (implicit HttpApi)
+    Value: !GetAtt ServerlessHttpApi.ApiEndpoint        # e.g. https://abc123.execute-api.us-east-2.amazonaws.com
+  AppointmentsTableName:
+    Description: Physical name of the DynamoDB table for appointments
+    Value: !Ref AppointmentsTable
+  BarbersTableName:
+    Description: Physical name of the DynamoDB table for barbers
+    Value: !Ref BarbersTable

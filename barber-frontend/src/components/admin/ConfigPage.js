@@ -273,34 +273,6 @@ function ConfigPage({ onBack }) {
     });
   };
   
-  // Handler for DynamoDB configuration changes
-  const handleDynamoDBChange = (field, value) => {
-    setCurrentConfig({
-      ...currentConfig,
-      database: {
-        ...(currentConfig.database || {}),
-        dynamodb: {
-          ...(currentConfig.database?.dynamodb || {}),
-          [field]: value
-        }
-      }
-    });
-  };
-  
-  // Handler for local database configuration changes
-  const handleLocalDBChange = (field, value) => {
-    setCurrentConfig({
-      ...currentConfig,
-      database: {
-        ...(currentConfig.database || {}),
-        local: {
-          ...(currentConfig.database?.local || {}),
-          [field]: value
-        }
-      }
-    });
-  };
-
   // Handle save button click
   const handleSave = () => {
     updateConfig(ensureMessagingDefaults(currentConfig));
@@ -370,7 +342,6 @@ function ConfigPage({ onBack }) {
           <Tab label="Terminologia" />
           <Tab label="Mensagens" />
           <Tab label="Integração" />
-          <Tab label="Banco de Dados" />
           <Tab label="Segurança" />
         </Tabs>
       </AppBar>

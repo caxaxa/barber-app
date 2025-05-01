@@ -1,3 +1,5 @@
+// src/pages/LoginPage.js
+
 import React, { useState } from 'react';
 import {
   Box,
@@ -13,45 +15,59 @@ import {
 } from '@mui/material';
 import { useConfig } from '../context/ConfigContext';
 import AdminPage from './AdminPage';
+import SignUp from './SignUp';
 
 export default function LoginPage() {
+  const [mode, setMode] = useState('login'); // 'login' or 'signup'
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const { login } = useConfig();
 
-  const handleLogin = () => {
-    const result = login(username, password);
-    if (result.success) {
-      setIsLoggedIn(true);
-      setError('');
-    } else {
-      setError('Credenciais inválidas. Tente novamente.');
-    }
-  };
-
+  // Handle Enter key
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       handleLogin();
     }
   };
 
-  // If the user is logged in, show the admin page
+  // Perform login via Cognito
+  const handleLogin = async () => {
+    setError('');
+    const result = await login(username, password);
+    if (result.success) {
+      setIsLoggedIn(true);
+    } else {
+      setError(result.message || 'Credenciais inv&aacute;lidas. Tente novamente.');
+    }
+  };
+
+  // If already authenticated, show the admin/config page
   if (isLoggedIn) {
     return <AdminPage />;
   }
 
+  // If in signup mode, render the SignUp form
+  if (mode === 'signup') {
+    return (
+      <Container maxWidth="sm" sx={{ height: '100vh', display: 'flex', alignItems: 'center' }}>
+        <Paper elevation={3} sx={{ width: '100%', p: 4, borderRadius: 2 }}>
+          <SignUp />
+          <Box sx={{ textAlign: 'center', mt: 2 }}>
+            <Button onClick={() => { setMode('login'); setError(''); }}>
+              Voltar para Login
+            </Button>
+          </Box>
+        </Paper>
+      </Container>
+    );
+  }
+
+  // Default: login mode
   return (
     <Container maxWidth="sm" sx={{ height: '100vh', display: 'flex', alignItems: 'center' }}>
-      <Paper
-        elevation={3}
-        sx={{
-          width: '100%',
-          p: 4,
-          borderRadius: 2,
-        }}
-      >
+      <Paper elevation={3} sx={{ width: '100%', p: 4, borderRadius: 2 }}>
         <Stack spacing={3}>
           <Card sx={{ mb: 3, overflow: 'hidden', borderRadius: 2 }}>
             <CardMedia
@@ -71,9 +87,7 @@ export default function LoginPage() {
           </Typography>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
+            <Alert severity="error">{error}</Alert>
           )}
 
           <TextField
@@ -81,7 +95,7 @@ export default function LoginPage() {
             fullWidth
             margin="normal"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={e => setUsername(e.target.value)}
             onKeyDown={handleKeyDown}
             autoFocus
           />
@@ -92,7 +106,7 @@ export default function LoginPage() {
             fullWidth
             margin="normal"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             onKeyDown={handleKeyDown}
           />
 
@@ -107,15 +121,24 @@ export default function LoginPage() {
             Entrar
           </Button>
 
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="caption" color="text.secondary" align="center" display="block">
+          <Box sx={{ textAlign: 'center', mt: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Não tem conta?{' '}
+              <Button variant="text" onClick={() => { setMode('signup'); setError(''); }}>
+                Criar uma conta
+              </Button>
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Typography variant="caption" color="text.secondary" display="block">
               Credenciais de teste:
             </Typography>
-            <Typography variant="caption" color="text.secondary" align="center" display="block">
-              Empresa: usuário &quot;empresa&quot; / senha &quot;empresa123&quot;
+            <Typography variant="caption" color="text.secondary" display="block">
+              Empresa: usu&aacute;rio &quot;empresa&quot; / senha &quot;empresa123&quot;
             </Typography>
-            <Typography variant="caption" color="text.secondary" align="center" display="block">
-              Individual: usuário &quot;individual&quot; / senha &quot;individual123&quot;
+            <Typography variant="caption" color="text.secondary" display="block">
+              Individual: usu&aacute;rio &quot;individual&quot; / senha &quot;individual123&quot;
             </Typography>
           </Box>
         </Stack>
