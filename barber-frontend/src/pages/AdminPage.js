@@ -30,7 +30,7 @@ import SecurityConfig from '../components/admin/config/SecurityConfig';
 import TestEnvironment from './TestEnvironment';
 
 export default function AdminPage() {
-  const { config, updateConfig, resetConfig, logout, getUserRole } = useConfig();
+  const { config, updateConfig, resetConfig, signOut, getUserRole } = useConfig();
   const [tabValue, setTabValue] = useState(0);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -69,9 +69,8 @@ export default function AdminPage() {
 
   // Handle logout
   const handleLogout = () => {
-    logout();
-    window.location.reload();
-  };
+      signOut();
+    };
 
   return (
     <Box sx={{ flexGrow: 1 }}>

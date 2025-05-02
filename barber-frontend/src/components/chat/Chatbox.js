@@ -18,7 +18,7 @@ import { useConfig } from '../../context/ConfigContext';
 /**
  * Chatbox component that allows users to book appointments via a chat interface
  */
-export default function Chatbox({ onNewAppointment, barbers, isEnterpriseAccount, freeModeAllowed }) {
+export default function Chatbox({ onNewAppointment, barbers, freeModeAllowed }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,7 +28,8 @@ export default function Chatbox({ onNewAppointment, barbers, isEnterpriseAccount
   const [showTimeOptions, setShowTimeOptions] = useState(false);
   const [availableTimes, setAvailableTimes] = useState([]);
   const [availableDates, setAvailableDates] = useState([]);
-
+  
+  
   
   // Track booking flow state
   const [bookingState, setBookingState] = useState({
@@ -42,8 +43,9 @@ export default function Chatbox({ onNewAppointment, barbers, isEnterpriseAccount
   const showConfirmOptions = bookingState.step === 6;
   const messagesEndRef = useRef(null);
   const { showNotification } = useNotification();
-  const { config } = useConfig();
-  
+  const { config, getUserRole } = useConfig();
+  const isEnterpriseAccount = getUserRole() === 'enterprise';
+
   // Common services
   const commonServices = [
     "Corte de cabelo",
@@ -411,26 +413,28 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           setShowServiceOptions(true);
           return "Qual serviço você gostaria de agendar?";
           
-        case 3: // After collecting service, ask for barber (only in enterprise mode)
-          setShowServiceOptions(false);
+          case 3:
+            setShowServiceOptions(false);
           
-          // In individual mode, skip barber selection step
-          if (!isEnterpriseAccount && barbers.length > 0) {
-            setBookingState(prev => ({
-              ...prev,
-              selectedBarber: barbers[0],
-              step: 4
-            }));
-            
-            generateDateOptions();
-            setShowDateOptions(true);
-            return `Para qual data você gostaria de agendar seu ${bookingState.selectedService} com ${barbers[0].name}?`;
-          }
+            // --- INDIVIDUAL ACCOUNTS: auto-pick the only barber and jump to date ---
+            if (!isEnterpriseAccount) {
+              const solo = barbers[0] || {
+                barber_id: sessionStorage.getItem('barberId'),
+                name:      sessionStorage.getItem('barberName')
+              };
+              setBookingState(prev => ({
+                ...prev,
+                selectedBarber: solo,
+                step: 4
+              }));
+              generateDateOptions();
+              setShowDateOptions(true);
+              return `Para qual data você gostaria de agendar seu ${bookingState.selectedService} com ${solo.name}?`;
+            }
           
-          // In enterprise mode, show barber selection
-          setShowBarberOptions(true);
-          return "Qual profissional você prefere para o serviço de " + bookingState.selectedService + "?";
-          
+            // --- ENTERPRISE ACCOUNTS: ask to choose a barber ---
+            setShowBarberOptions(true);
+            return `Qual profissional você prefere para o serviço de ${bookingState.selectedService}?`;                 
         case 4: // After collecting barber, ask for date
           setShowBarberOptions(false);
           generateDateOptions();
@@ -520,34 +524,39 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       let assistantResponse;
       
       // For individual accounts, skip barber selection
-      if (!isEnterpriseAccount && barbers.length > 0) {
+      // INDIVIDUAL: auto-assign the solo barber and jump to date
+      if (!isEnterpriseAccount) {
+        const solo = barbers[0] || {
+          barber_id: sessionStorage.getItem('barberId'),
+          name:      sessionStorage.getItem('barberName')
+        };
         setBookingState(prev => ({
           ...prev,
-          selectedBarber: barbers[0],
+          selectedBarber: solo,
           step: 4
         }));
-        
-        assistantResponse = { 
-          role: 'assistant', 
-          content: `Para qual data você gostaria de agendar seu ${service} com ${barbers[0].name}?` 
+
+        assistantResponse = {
+          role: 'assistant',
+          content: `Para qual data você gostaria de agendar seu ${service} com ${solo.name}?`
         };
-        
-        // Show date options instead of barber options
+
         setShowServiceOptions(false);
         generateDateOptions();
         setShowDateOptions(true);
+
       } else {
-        // For enterprise accounts, ask for barber selection
-        assistantResponse = { 
-          role: 'assistant', 
-          content: "Qual profissional você prefere para o serviço de " + service + "?" 
+        // ENTERPRISE: ask the user to choose which barber
+        assistantResponse = {
+          role: 'assistant',
+          content: `Qual profissional você prefere para o serviço de ${service}?`
         };
-        
-        // Update UI
+
         setShowServiceOptions(false);
         setShowBarberOptions(true);
         setShowTimeOptions(false);
       }
+
       
       setMessages(prev => [...prev, assistantResponse]);
     } else {

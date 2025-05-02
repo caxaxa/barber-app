@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-// 🎯 NO more Amplify.configure(...) here
+// No Amplify imports here any more!
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

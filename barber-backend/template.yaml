@@ -12,7 +12,7 @@ Globals:
     Cors:
       AllowOrigins: "'*'"
       AllowMethods: "'OPTIONS,GET,POST'"
-      AllowHeaders: "'Content-Type'"
+      AllowHeaders: "'Content-Type,Authorization'"
 
 ######################################################################
 # 2)  DynamoDB tables and Cognito Pool  (managed by CloudFormation)
@@ -66,6 +66,18 @@ Resources:
         Audience:
           - !Ref UserPoolClient
         Issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+        
+  BarberApiAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref ServerlessHttpApi
+      AuthorizerType: JWT
+      IdentitySource: '$request.header.Authorization'
+      Name: CognitoAuthorizer
+      JwtConfiguration:
+        Issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPoolId}
+        Audience:
+          - !Ref CognitoAppClient
 
 ######################################################################
 #                        DynamoDB tables

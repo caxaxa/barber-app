@@ -1,10 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { fetchConfig, saveConfig } from '../services/api';
-
 import {
     signIn,
-    signOut,
     signUp,
     getSession
   } from '../services/cognito';
@@ -318,13 +316,22 @@ export function ConfigProvider({ children }) {
     }
   };
   
+  const signOut = () => {
+    // clear client state
+    sessionStorage.removeItem('idToken');
+    sessionStorage.removeItem('shopId');
+    sessionStorage.removeItem('userRole');
+  
+    // Build the exact logout URL Cognito expects:
+    const domain      = process.env.REACT_APP_COGNITO_DOMAIN;       // e.g. https://your-domain.auth.us-east-2.amazoncognito.com
+    const clientId    = process.env.REACT_APP_COGNITO_CLIENT_ID;   // your app client ID
+    const logoutUri   = process.env.REACT_APP_REDIRECT_URI;        // MUST match exactly your "Allowed sign-out URL"
     
-
-   const logout = async () => {
-    await signOut();
-    setIsAuthenticated(false);
-    setShopId(null);
-    // redirect to /signin
+    window.location.assign(
+      `${domain}/logout` +
+      `?client_id=${clientId}` +
+      `&logout_uri=${encodeURIComponent(logoutUri)}`
+    );
   };
 
   // Get current user role
@@ -364,15 +371,7 @@ export function ConfigProvider({ children }) {
   
   return (
     <ConfigContext.Provider
-      value={{
-        config,
-        updateConfig,
-        resetConfig,
-        isAuthenticated,
-        login,
-        logout,
-        getUserRole
-      }}
+    value={{ config, updateConfig, resetConfig, isAuthenticated, login, signOut, getUserRole, setUserRole }}
     >
       {children}
     </ConfigContext.Provider>

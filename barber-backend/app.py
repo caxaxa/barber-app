@@ -79,9 +79,9 @@ def lambda_handler(event, context):
     # Cognito injects: event['requestContext']['authorizer']['jwt']['claims']
     # ─── Extract tenant + plan from Cognito JWT ─────────────────
     # (Api Gateway JWT Authorizer must be configured)
-    claims       = event['requestContext']['authorizer']['jwt']['claims']
-    shop_id      = claims.get('cognito:username')       # your tenant key
-    account_type = claims.get('custom:accountType')     # use in handlers if needed
+    claims = event['requestContext']['authorizer']['jwt']['claims']
+    shop_id = claims['cognito:username']      # now every tenant is isolated
+    account_type = claims.get('custom:accountType', 'individual')
 
     # ─── Inject shop_id into query params for existing handlers ─
     qsp = event.get('queryStringParameters') or {}
@@ -138,10 +138,10 @@ def get_barbers(event):
         return response(400, {"message": "Missing shop_id"})
 
     try:
-        res   = barbers_table.query(
-                  KeyConditionExpression=Key('shop_id').eq(shop_id)
-                )
-        items = [json_safe(item) for item in res.get('Items', [])]
+        res = barbers_table.query(
+            KeyConditionExpression=Key('shop_id').eq(shop_id)
+        )
+        items = [json_safe(i) for i in res.get('Items', [])]
         return response(200, {"barbers": items})
 
     except Exception as e:

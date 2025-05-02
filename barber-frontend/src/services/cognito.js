@@ -7,7 +7,7 @@ import {
   
   const poolData = {
     UserPoolId: process.env.REACT_APP_USER_POOL_ID,
-    ClientId:   process.env.REACT_APP_USER_POOL_WEB_CLIENT_ID,
+    ClientId:   process.env.REACT_APP_COGNITO_CLIENT_ID,
   };
   
   export const userPool = new CognitoUserPool(poolData);
@@ -37,11 +37,6 @@ import {
         onFailure: err     => reject(err),
       });
     });
-  }
-  
-  export function signOut(username) {
-    const user = userPool.getCurrentUser();
-    if (user) user.signOut();
   }
   
   export function getSession() {
