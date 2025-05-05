@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Worker Appointment Scheduling – single‑table, multi‑tenant backend
+
+##########################################################################
+# Parameters – IDs of your _already existing_ Cognito pool + client
+##########################################################################
+
+Parameters:
+  ExistingUserPoolId:
+    Type: String
+    Description: us-east-2_3hnWNGVkJ
+  ExistingUserPoolClientId:
+    Type: String
+    Description: 52r7dt137d6vj2h4ch49t8krrs
+
+##########################################################################
+# 1) HTTP API – CORS enabled, Cognito authorizer uses those parameters
+##########################################################################
+
+Resources:
+
+  WorkerHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: Prod
+      CorsConfiguration:
+        AllowOrigins: ["http://localhost:3000"]
+        AllowMethods: ["OPTIONS", "GET", "POST", "PUT"]
+        AllowHeaders: ["*"]            # 👈 accept every header
+        MaxAge: 3600                   # (optional) cache pre‑flight 1 h
+      Auth:
+        Authorizers:
+          CognitoAuthorizer:
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              Issuer:   !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${ExistingUserPoolId}
+              Audience: [!Ref ExistingUserPoolClientId]
+
+
+##########################################################################
+# 2) DynamoDB tables
+##########################################################################
+
+  AppointmentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-Appointments"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: shop_id
+          AttributeType: S
+        - AttributeName: sort_key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shop_id
+          KeyType: HASH
+        - AttributeName: sort_key
+          KeyType: RANGE
+
+  WorkersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-Workers"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: shop_id
+          AttributeType: S
+        - AttributeName: worker_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shop_id
+          KeyType: HASH
+        - AttributeName: worker_id
+          KeyType: RANGE
+
+  ConfigsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-Configs"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: shop_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shop_id
+          KeyType: HASH
+
+##########################################################################
+# 3) Lambda – three secured methods; OPTIONS unauthenticated
+##########################################################################
+
+  WorkerApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Environment:
+        Variables:
+          APPOINTMENTS_TABLE: !Ref AppointmentsTable
+          WORKERS_TABLE:      !Ref WorkersTable
+          CONFIGS_TABLE:      !Ref ConfigsTable
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref AppointmentsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref WorkersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref ConfigsTable }
+      Events:
+        ApiGet:
+          Type: HttpApi
+          Properties:
+            ApiId:  !Ref WorkerHttpApi
+            Path:   /{proxy+}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+        ApiPost:
+          Type: HttpApi
+          Properties:
+            ApiId:  !Ref WorkerHttpApi
+            Path:   /{proxy+}
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+        ApiPut:
+          Type: HttpApi
+          Properties:
+            ApiId:  !Ref WorkerHttpApi
+            Path:   /{proxy+}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+##########################################################################
+# 4) Outputs
+##########################################################################
+
+Outputs:
+
+  ApiUrl:
+    Description: HTTP API endpoint
+    Value: !Sub "https://${WorkerHttpApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+
+  AppointmentsTableName:
+    Description: Appointments table name
+    Value: !Ref AppointmentsTable
+
+  WorkersTableName:
+    Description: Workers table name
+    Value: !Ref WorkersTable
+
+  ConfigsTableName:
+    Description: Configurations table name
+    Value: !Ref ConfigsTable

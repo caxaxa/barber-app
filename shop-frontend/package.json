@@ -1,0 +1,74 @@
+{
+  "name": "shop-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@aws-amplify/api": "^6.3.11",
+    "@aws-amplify/api-rest": "^4.1.4",
+    "@aws-amplify/auth": "^6.12.4",
+    "@aws-amplify/core": "^6.11.4",
+    "@aws-amplify/ui-react": "^6.11.1",
+    "@chakra-ui/modal": "^2.3.1",
+    "@chakra-ui/react": "^3.8.1",
+    "@devexpress/dx-core": "^4.0.10",
+    "@devexpress/dx-react-core": "^4.0.10",
+    "@devexpress/dx-react-scheduler": "^4.0.10",
+    "@devexpress/dx-react-scheduler-material-ui": "^4.0.10",
+    "@devexpress/dx-scheduler-core": "^4.0.10",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@fullcalendar/daygrid": "^5.11.3",
+    "@fullcalendar/interaction": "^5.11.3",
+    "@fullcalendar/react": "^5.11.3",
+    "@fullcalendar/timegrid": "^5.11.3",
+    "@mui/icons-material": "^5.16.14",
+    "@mui/lab": "^5.0.0-alpha.117",
+    "@mui/material": "^5.16.14",
+    "@mui/x-date-pickers": "^5.0.20",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "amazon-cognito-identity-js": "^6.3.15",
+    "aws-amplify": "^6.14.4",
+    "cra-template": "1.2.0",
+    "framer-motion": "^12.4.7",
+    "jwt-decode": "^4.0.0",
+    "prop-types": "^15.8.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "^5.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "proxy": "http://localhost:3002",
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.9",
+    "autoprefixer": "^10.4.20",
+    "eslint-plugin-react": "^7.37.2",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.0.9"
+  }
+}
