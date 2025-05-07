@@ -9,10 +9,10 @@ Description: Worker Appointment Scheduling – single‑table, multi‑tenant ba
 Parameters:
   ExistingUserPoolId:
     Type: String
-    Description: us-east-2_3hnWNGVkJ
+    Description: us-east-2_GDqu3Yx7v
   ExistingUserPoolClientId:
     Type: String
-    Description: 52r7dt137d6vj2h4ch49t8krrs
+    Description: 5gcfno4cq49o9vddo8b85308qd
 
 ##########################################################################
 # 1) HTTP API – CORS enabled, Cognito authorizer uses those parameters

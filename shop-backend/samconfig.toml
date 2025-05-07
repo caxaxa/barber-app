@@ -9,5 +9,5 @@ disable_rollback = false
 resolve_s3       = true
 s3_prefix        = "worker-app-stack"
 image_repositories = []
-parameter_overrides = "ExistingUserPoolId=\"us-east-2_3hnWNGVkJ\" ExistingUserPoolClientId=\"52r7dt137d6vj2h4ch49t8krrs\""
+parameter_overrides = "ExistingUserPoolId=\"us-east-2_GDqu3Yx7v\" ExistingUserPoolClientId=\"5gcfno4cq49o9vddo8b85308qd\""
 
