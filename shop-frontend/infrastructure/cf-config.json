@@ -1,0 +1,70 @@
+{
+    "CallerReference": "react-static-1617901234",
+    "Comment": "Static site for calendario.aisol.cloud",
+    "Enabled": true,
+    "Aliases": {
+      "Quantity": 1,
+      "Items": [
+        "calendario.aisol.cloud"
+      ]
+    },
+    "Origins": {
+      "Quantity": 1,
+      "Items": [
+        {
+          "Id": "S3-Website",
+          "DomainName": "calendario.aisol.cloud.s3-website-us-east-2.amazonaws.com",
+          "CustomOriginConfig": {
+            "HTTPPort": 80,
+            "HTTPSPort": 443,
+            "OriginProtocolPolicy": "http-only",
+            "OriginSslProtocols": {
+              "Quantity": 1,
+              "Items": [
+                "TLSv1.2"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "DefaultCacheBehavior": {
+      "TargetOriginId": "S3-Website",
+      "ViewerProtocolPolicy": "redirect-to-https",
+      "AllowedMethods": {
+        "Quantity": 2,
+        "Items": [
+          "GET",
+          "HEAD"
+        ],
+        "CachedMethods": {
+          "Quantity": 2,
+          "Items": [
+            "GET",
+            "HEAD"
+          ]
+        }
+      },
+      "ForwardedValues": {
+        "QueryString": false,
+        "Cookies": {
+          "Forward": "none"
+        }
+      },
+      "TrustedSigners": {
+        "Enabled": false,
+        "Quantity": 0
+      },
+      "Compress": true,
+      "DefaultTTL": 86400,
+      "MinTTL": 0,
+      "MaxTTL": 31536000
+    },
+    "ViewerCertificate": {
+      "ACMCertificateArn": "arn:aws:acm:us-east-1:002938753233:certificate/a36f48e5-1d1a-445c-a7a8-643fcad6c002",
+      "SSLSupportMethod": "sni-only",
+      "MinimumProtocolVersion": "TLSv1.2_2019"
+    },
+    "DefaultRootObject": "index.html"
+  }
+  
