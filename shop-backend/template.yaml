@@ -25,7 +25,7 @@ Resources:
     Properties:
       StageName: Prod
       CorsConfiguration:
-        AllowOrigins: ["http://localhost:3000","https://calendario.aisol.cloud","https://d24qdqpj5ro3r2.cloudfront.net"]
+        AllowOrigins: ["http://localhost:3000","https://calendario.aisol.cloud","https://d24qdqpj5ro3r2.cloudfront.netgit"]
         AllowMethods: ["OPTIONS", "GET", "POST", "PUT"]
         AllowHeaders: ["*"]            # 👈 accept every header
         MaxAge: 3600                   # (optional) cache pre‑flight 1 h
