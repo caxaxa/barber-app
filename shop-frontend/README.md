@@ -4,6 +4,37 @@ A versatile appointment scheduling and customer management system for service bu
 
 ![Service Business Appointment System](https://github.com/yourusername/service-appointment-system/raw/main/screenshot.png)
 
+
+# Local Setup & Environment Variables
+
+Copy this file to your project root as `.env` and fill in the blanks.
+
+| Variable | Example | Purpose |
+|----------|---------|---------|
+| `REACT_APP_BACKEND_URL` | `https://api.example.com` | Root URL returned by SAM/API Gateway |
+| `REACT_APP_API_URL` | `https://api.example.com/Prod` | Versioned endpoint for REST calls |
+| `REACT_APP_OPENAI_API_KEY` | `sk‑********************************` | Enables AI chat assistant |
+| `REACT_APP_AWS_REGION` | `us‑east‑2` | Region for Cognito & DynamoDB |
+| `REACT_APP_USER_POOL_ID` | `us‑east‑2_abcd1234` | Cognito User Pool ID |
+| `REACT_APP_COGNITO_CLIENT_ID` | `1h57kf5cpq17********` | OAuth2 app client (implicit) |
+| `REACT_APP_COGNITO_DOMAIN` | `https://your-domain.auth.us-east-2.amazoncognito.com` | Hosted‑UI domain |
+| `REACT_APP_REDIRECT_URI` | `http://localhost:3000` | Callback URL whitelisted in Cognito |
+
+## Extra (optional)
+
+| Variable | Purpose |
+|----------|---------|
+| `REACT_APP_GOOGLE_CALENDAR_ID` | Enables Google Calendar sync for free tier |
+| `REACT_APP_GOOGLE_API_KEY` | Needed if you activate calendar sync |
+
+---
+
+## Tips
+
+* **No redirects?** Ensure your `REACT_APP_REDIRECT_URI` matches *exactly* in Cognito console.
+* **CORS 401?** Double‑check the API Gateway authorizer is pointed at the same User Pool.
+* **Running offline?** Omit API URLs – the front‑end auto‑switches to mock data.
+
 ## Key Features
 
 - **Dual Mode Operation**
