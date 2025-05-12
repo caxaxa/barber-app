@@ -20,6 +20,35 @@ Parameters:
 
 Resources:
 
+
+  AppPublicApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      EndpointConfiguration: REGIONAL
+      Auth:
+        ApiKeyRequired: true
+      Cors: "'*'"
+
+  AppPublicUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      ApiStages:
+        - ApiId: !Ref AppPublicApi
+          Stage: !Ref AppPublicApiProdStage
+      UsagePlanName: public-plan
+
+  AppPublicApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Enabled: true
+      Name: public-booking-key
+      StageKeys:
+        - RestApiId: !Ref AppPublicApi
+          StageName: Prod
+      UsagePlanId: !Ref AppPublicUsagePlan
+
+
   WorkerHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:

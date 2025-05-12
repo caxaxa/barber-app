@@ -11,6 +11,8 @@ import {
   CardActionArea,
   CardContent
 } from '@mui/material';
+import { handleMessage, getSuggestedOptions } from '@barber-app/booking-fsm';
+import { BookingContext } from '@barber-app/booking-fsm';
 import { callChatApi } from '../../services/api';
 import { useNotification } from '../ui/NotificationContext';
 import { useConfig } from '../../context/ConfigContext';
@@ -40,15 +42,16 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
   
   
   // Track booking flow state
-  const [bookingState, setBookingState] = useState({
-    step: 0, // 0: greeting, 1: name, 2: service, 3: worker, 4: date, 5: time, 6: confirmation
-    clientName: '',
-    selectedService: '',
-    selectedWorker: null,
-    selectedDate: '',
-    selectedTime: ''
-  });
-  const showConfirmOptions = bookingState.step === 6;
+  const [ctx, setCtx] = useState(/** @type {BookingContext} */({
+    shop_id: sessionStorage.getItem('shopId'),
+    accountType: getUserRole() === 'enterprise' ? 'enterprise' : 'individual',
+    workers,
+    config,
+    step: 0
+  }));
+  const bookingState = ctx;
+  const setBookingState = setCtx;
+  const showConfirmOptions = ctx.step === 6;
   const messagesEndRef = useRef(null);
   const { showNotification } = useNotification();
 
@@ -138,12 +141,12 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     if (
       isGuidedMode() &&
       isEnterpriseAccount &&
-      bookingState.step === 3 &&
+      ctx.step === 3 &&
       workers.length > 0
     ) {
       setShowWorkerOptions(true);   // display the buttons now
     }
-  }, [workers.length, isEnterpriseAccount, bookingState.step]);
+  }, [workers.length, isEnterpriseAccount, ctx.step]);
   const getPromptText = () => {
     const businessType = config?.business?.type?.toUpperCase() || 'BARBEARIA';
     const businessName = config?.business?.name || 'Barbearia Elite';
@@ -394,7 +397,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
   // Process the guided booking flow
   const processGuidedBookingStep = (message) => {
     // Extract name if we're at the name step
-    if (bookingState.step === 1 && message.role === 'user') {
+    if (ctx.step === 1 && message.role === 'user') {
       setBookingState(prev => ({
         ...prev,
         clientName: message.content,
@@ -412,7 +415,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     
     // For other steps, handle based on the current content
     if (message.role === 'assistant') {
-      switch(bookingState.step) {
+      switch(ctx.step) {
         case 0: // After greeting, next ask for name
           return "Olá! Sou a " + (config?.assistant?.name || "Amanda") + ", assistente virtual da " + (config?.business?.name || "Barbearia Elite") + ". Para começar, poderia me informar seu nome, por favor?";
         
@@ -705,7 +708,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     
     const userMessage = { role: 'user', content: textToSend };
 
-    if (isGuidedMode() && bookingState.step === 2) {
+    if (isGuidedMode() && ctx.step === 2) {
       const typed = textToSend.trim().toLowerCase();
       const matched = commonServices.find(
         s => s.toLowerCase() === typed
@@ -720,130 +723,35 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     
     // Handle differently based on guided vs free mode
     if (isGuidedMode()) {
-      // In guided mode, process the flow based on booking step
-      
-      // If the user has entered their name (step 1)
-      if (bookingState.step === 1) {
-        setBookingState(prev => ({
-          ...prev,
-          clientName: textToSend,
-          step: 2
-        }));
-        
-        // Add user message to chat
-        setMessages(prev => [...prev, userMessage]);
-        setInput('');
-        
-        // Add assistant response for service selection
-        const assistantResponse = { 
-          role: 'assistant', 
-          content: `Olá ${textToSend}! Qual serviço você gostaria de agendar?` 
-        };
-        setMessages(prev => [...prev, assistantResponse]);
-        
-        // Show service options
-        setShowServiceOptions(true);
-        return;
-      }
-      
-      // If we're on the confirmation step (step 6)
-      if (bookingState.step === 6) {
-        // Add user message to chat
-        setMessages(prev => [...prev, userMessage]);
-        setInput('');
-        
-        // Check if the user confirmed
-        const lowerText = textToSend.toLowerCase();
-        if (lowerText.includes('sim') || lowerText.includes('confirmo') || lowerText === 's') {
-          // Ensure all data is available
-          if (!bookingState.selectedWorker || !bookingState.selectedDate || !bookingState.selectedTime || !bookingState.clientName) {
-            console.error("Missing booking data:", bookingState);
-            
-            const errorResponse = {
-              role: 'assistant',
-              content: `❌ Não foi possível confirmar seu agendamento devido a informações incompletas. Vamos recomeçar o processo.`
-            };
-            setMessages(prev => [...prev, errorResponse]);
-            setBookingState(prev => ({ ...prev, step: 2 }));
-            setShowServiceOptions(true);
-            return;
-          }
-          
+      const { reply, context, appointment } = handleMessage(textToSend, {
+        ...ctx,
+        workers   // fresh list
+      });
 
-          const isEnterpriseAccount = getUserRole() === 'enterprise';
-          
-          // ↓↓ Then, when you build your appointment payload ↓↓
-          
-          // deep inside sendMessage, at confirmation step:
-          const workerId = isEnterpriseAccount
-            ? bookingState.selectedWorker.worker_id   // chosen from the UI
-            : shopId;                                 // the single-user ID
+      setMessages(prev => [
+        ...prev,
+        { role: 'user', content: textToSend },
+        { role: 'assistant', content: reply }
+      ]);
+      setCtx(context);
 
-          const appointmentData = {
-            worker_id:   workerId,
-            date:        bookingState.selectedDate,
-            start_time:  bookingState.selectedTime,
-            client_name: bookingState.clientName
-          };
-          
-          try {
-            // Call the onNewAppointment prop function to save the appointment
-            const result = await onNewAppointment(appointmentData);
-            console.log("Appointment creation result:", result);
-            
-            // Format date for better readability in dd/mm/yyyy format
-            const [y, m, d] = bookingState.selectedDate.split('-').map(Number);
-            const selectedDate = new Date(y, m - 1, d);    // use this to fix the CGR UTC-4 bug
-            const day = selectedDate.getDate().toString().padStart(2, '0');
-            const month = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
-            const year = selectedDate.getFullYear();
-            const formattedDate = `${day}/${month}/${year}`;            
-            
-            // Success message
-            const successResponse = {
-              role: 'assistant',
-              content: `✅ Perfeito! Seu agendamento foi confirmado.\n\n📆 Data: ${formattedDate}\n⏰ Horário: ${bookingState.selectedTime}\n💈 Profissional: ${bookingState.selectedWorker.name}\n👤 Cliente: ${bookingState.clientName}\n\nObrigado pela preferência! Caso precise reagendar ou cancelar, basta me avisar. Estamos ansiosos para recebê-lo.`
-            };
-            setMessages(prev => [...prev, successResponse]);
-            
-            // Reset booking state for a new appointment
-            setBookingState({
-              step: 0,
-              clientName: '',
-              selectedService: '',
-              selectedWorker: null,
-              selectedDate: '',
-              selectedTime: ''
-            });
-          } catch (error) {
-            const errorResponse = {
-              role: 'assistant',
-              content: `❌ Não foi possível confirmar seu agendamento devido ao seguinte problema:\n\n"${error.message}"\n\nPor favor, podemos tentar um horário alternativo? Estou à disposição para ajudá-lo a encontrar um horário que funcione para você.`
-            };
-            setMessages(prev => [...prev, errorResponse]);
-          }
-        } else {
-          // User did not confirm, go back to service selection
-          setBookingState(prev => ({
-            ...prev,
-            step: 2
-          }));
-          
-          const tryAgainResponse = {
-            role: 'assistant',
-            content: `Vamos recomeçar então. Qual serviço você gostaria de agendar?`
-          };
-          setMessages(prev => [...prev, tryAgainResponse]);
-          setShowServiceOptions(true);
+      if (appointment) {
+        try {
+          await onNewAppointment(appointment);
+        } catch (err) {
+          showNotification(err.message, 'error');
         }
-        
-        return;
       }
-      
-      // For other steps, just add user message and wait for button selection
-      setMessages(prev => [...prev, userMessage]);
+
+      // toggle UI chips
+      const opts = getSuggestedOptions(context);
+      setShowServiceOptions(context.step === 2 && opts.length);
+      setShowWorkerOptions(context.step === 3 && opts.length);
+      setShowDateOptions(context.step === 4);
+      setShowTimeOptions(context.step === 5);
+
       setInput('');
-      return;
+      return;        // ✅ done, skip the free-mode branch
     } else {
       // In free mode, use the API
       const updatedMessages = [...messages, userMessage];
@@ -1214,7 +1122,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
         )}
 
         {/* ✔ / ✖ Confirmation buttons */}
-        {isGuidedMode() && bookingState.step === 6 && (
+        {isGuidedMode() && ctx.step === 6 && (
           <Box sx={{ mt: 2, mb: 2 }}>
             <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
               Confirmar agendamento?

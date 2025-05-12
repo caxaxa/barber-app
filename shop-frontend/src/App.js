@@ -1,24 +1,27 @@
 // src/App.js
-import React, { useEffect } from 'react';
-import { ConfigProvider } from './context/ConfigContext';
-import { NotificationProvider } from './components/ui/NotificationContext';
-import LoginPage from './pages/LoginPage';
+import React, { useEffect } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import { ConfigProvider } from "./context/ConfigContext";
+import { NotificationProvider } from "./components/ui/NotificationContext";
+
+import LoginPage       from "./pages/LoginPage";
+import AdminPage       from "./pages/AdminPage";        // ← example
+import BookingWidget   from "./pages/BookingWidget";    // ← new share-link page
 
 function AppInitializer({ children }) {
   useEffect(() => {
-    // Cognito implicit-grant returns tokens in the hash: "#id_token=…&access_token=…"
+    // grab Cognito implicit-grant tokens from the URL fragment
     const hash = window.location.hash;
     if (hash) {
-      const params = new URLSearchParams(hash.slice(1));
-      const idToken = params.get('id_token');
+      const params   = new URLSearchParams(hash.slice(1));
+      const idToken  = params.get("id_token");
       if (idToken) {
-        localStorage.setItem('idToken', idToken);
-        // Remove the fragment so the URL is clean
-        window.history.replaceState(null, '', window.location.pathname);
+        localStorage.setItem("idToken", idToken);
+        window.history.replaceState(null, "", window.location.pathname);
       }
     }
   }, []);
-
   return children;
 }
 
@@ -27,7 +30,17 @@ export default function App() {
     <AppInitializer>
       <ConfigProvider>
         <NotificationProvider>
-          <LoginPage />
+          <BrowserRouter>
+            <Routes>
+              {/* public booking link                                         */}
+              <Route path="/book/:shop_id" element={<BookingWidget />} />
+
+              {/* normal authenticated app flows                              */}
+              <Route path="/admin"     element={<AdminPage   />} />
+              <Route path="/"          element={<LoginPage   />} />
+              {/* add more routes as needed                                   */}
+            </Routes>
+          </BrowserRouter>
         </NotificationProvider>
       </ConfigProvider>
     </AppInitializer>
