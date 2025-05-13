@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Worker Appointment Scheduling – single‑table, multi‑tenant backend
+Description: Worker Appointment Scheduling – single-table, multi-tenant backend
 
-##########################################################################
-# Parameters – IDs of your _already existing_ Cognito pool + client
-##########################################################################
+##############################################################################
+# Parameters – IDs of your already-existing Cognito pool + client
+##############################################################################
 
 Parameters:
   ExistingUserPoolId:
@@ -15,61 +15,95 @@ Parameters:
     Description: 5gcfno4cq49o9vddo8b85308qd
 
 ##########################################################################
-# 1) HTTP API – CORS enabled, Cognito authorizer uses those parameters
+# Resources
 ##########################################################################
 
 Resources:
 
-
-  AppPublicApi:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: Prod
-      EndpointConfiguration: REGIONAL
-      Auth:
-        ApiKeyRequired: true
-      Cors: "'*'"
-
-  AppPublicUsagePlan:
-    Type: AWS::ApiGateway::UsagePlan
-    Properties:
-      ApiStages:
-        - ApiId: !Ref AppPublicApi
-          Stage: !Ref AppPublicApiProdStage
-      UsagePlanName: public-plan
-
-  AppPublicApiKey:
-    Type: AWS::ApiGateway::ApiKey
-    Properties:
-      Enabled: true
-      Name: public-booking-key
-      StageKeys:
-        - RestApiId: !Ref AppPublicApi
-          StageName: Prod
-      UsagePlanId: !Ref AppPublicUsagePlan
-
+##############################################################################
+# 1)  Authenticated HTTP API (Cognito)  – existing admin / dashboard API
+##############################################################################
 
   WorkerHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: Prod
       CorsConfiguration:
-        AllowOrigins: ["http://localhost:3000","https://calendario.aisol.cloud","https://d24qdqpj5ro3r2.cloudfront.netgit"]
+        AllowOrigins:
+          - "http://localhost:3000"
+          - "https://calendario.aisol.cloud"
+          - "https://d24qdqpj5ro3r2.cloudfront.net"
         AllowMethods: ["OPTIONS", "GET", "POST", "PUT"]
-        AllowHeaders: ["*"]            # 👈 accept every header
-        MaxAge: 3600                   # (optional) cache pre‑flight 1 h
+        AllowHeaders: ["*"]
       Auth:
         Authorizers:
           CognitoAuthorizer:
             IdentitySource: "$request.header.Authorization"
             JwtConfiguration:
-              Issuer:   !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${ExistingUserPoolId}
+              Issuer:   !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${ExistingUserPoolId}"
               Audience: [!Ref ExistingUserPoolClientId]
 
+##############################################################################
+# 2)  Public REST API  (share-link + WhatsApp) – API-Key protected
+##############################################################################
 
-##########################################################################
-# 2) DynamoDB tables
-##########################################################################
+  AppPublicApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      EndpointConfiguration: REGIONAL
+      Cors: "'*'"
+
+  AppPublicApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn: AppPublicApiProdStage
+    Properties:
+      Enabled: true
+      Name: public-booking-key
+      StageKeys:                      # ← link key directly to the stage
+        - RestApiId: !Ref AppPublicApi
+          StageName: Prod
+
+  PublicApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.public_handler
+      Runtime: python3.11
+      MemorySize: 256
+      Timeout: 15
+      Environment:
+        Variables:
+          APPOINTMENTS_TABLE: !Ref AppointmentsTable
+          WORKERS_TABLE:      !Ref WorkersTable
+          CONFIGS_TABLE:      !Ref ConfigsTable
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref AppointmentsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref WorkersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref ConfigsTable }
+      Events:
+        PublicConfig:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppPublicApi
+            Path:   /public/config
+            Method: GET
+        PublicWorkers:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppPublicApi
+            Path:   /public/workers
+            Method: GET
+        PublicBook:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppPublicApi
+            Path:   /public/appointments/book
+            Method: POST
+
+##############################################################################
+# 3)  DynamoDB tables
+##############################################################################
 
   AppointmentsTable:
     Type: AWS::DynamoDB::Table
@@ -115,9 +149,9 @@ Resources:
         - AttributeName: shop_id
           KeyType: HASH
 
-##########################################################################
-# 3) Lambda – three secured methods; OPTIONS unauthenticated
-##########################################################################
+##############################################################################
+# 4)  Authenticated Lambda (existing)
+##############################################################################
 
   WorkerApiFunction:
     Type: AWS::Serverless::Function
@@ -143,7 +177,6 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
-
         ApiPost:
           Type: HttpApi
           Properties:
@@ -152,7 +185,6 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
-
         ApiPut:
           Type: HttpApi
           Properties:
@@ -162,24 +194,54 @@ Resources:
             Auth:
               Authorizer: CognitoAuthorizer
 
-##########################################################################
-# 4) Outputs
-##########################################################################
+  # 5) Whatsapp inntegration:
+
+  # tiny HTTP API — no auth, CORS '*'
+  WhatsAppInApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: Prod
+      CorsConfiguration:
+        AllowOrigins: ["*"]
+        AllowMethods: ["POST"]
+        AllowHeaders: ["*"]
+
+  WhatsAppInFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: whatsapp_in_py
+      Handler: whatsapp_in.lambda_handler
+      Runtime: python3.11
+      MemorySize: 256
+      Timeout: 15
+      Environment:
+        Variables:
+          EVO_BASE_URL:   https://evolution-api-production-ad04.up.railway.app
+          EVO_API_KEY:    429683C4C977415CAAFCCE10F7D57E11
+          PUBLIC_API_URL: !Sub "https://${AppPublicApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+          PUBLIC_API_KEY: rE4H9alXxFaDjcRRp8vGv9ran0H5z4RW8SGNTtDP
+      Events:
+        EvoWebhook:
+          Type: HttpApi          # ← DIFFERENCE
+          Properties:
+            ApiId: !Ref WhatsAppInApi
+            Path: /whatsapp-in
+            Method: POST
+
+##############################################################################
+# 5)  Outputs
+##############################################################################
 
 Outputs:
 
-  ApiUrl:
-    Description: HTTP API endpoint
+  AdminApiUrl:
+    Description: Cognito-protected HTTP API
     Value: !Sub "https://${WorkerHttpApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
 
-  AppointmentsTableName:
-    Description: Appointments table name
-    Value: !Ref AppointmentsTable
+  PublicApiUrl:
+    Description: Public REST API (API-Key required)
+    Value: !Sub "https://${AppPublicApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
 
-  WorkersTableName:
-    Description: Workers table name
-    Value: !Ref WorkersTable
-
-  ConfigsTableName:
-    Description: Configurations table name
-    Value: !Ref ConfigsTable
+  PublicApiKey:
+    Description: API key for /public/* endpoints
+    Value: !Ref AppPublicApiKey

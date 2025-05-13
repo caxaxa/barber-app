@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@barber-app/booking-fsm": "file:./local_pkgs/barber-app-booking-fsm-0.1.0.tgz",
+    "axios": "^1.6.0"
+  }
+}
