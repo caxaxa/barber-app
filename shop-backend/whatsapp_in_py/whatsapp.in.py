@@ -6,6 +6,9 @@ EKEY = os.environ['EVO_API_KEY']
 PUB_API  = os.environ['PUBLIC_API_URL'].rstrip('/')
 PUB_KEY  = os.environ['PUBLIC_API_KEY']
 
+
+
+
 # ─────────────────────────────────────────────────────────────
 # optional: a _tiny_ Python port of the FSM – just stub here
 def handle_message(text: str, phone: str, ctx: dict):
@@ -26,6 +29,15 @@ def lambda_handler(event, _ctx):
     msg     = body["message"]["text"]
     phone   = body["message"]["from"]
 
+    
+    ALLOWED = {"5567999123456", "5511987654321"}      #  ➜ whitelist
+    BLOCKED = {"558899995555"}                        #  ➜ blacklist
+
+    jid = body["message"]["key"]["remoteJid"].split("@")[0]
+
+    if jid in BLOCKED or (ALLOWED and jid not in ALLOWED):
+        return { "statusCode": 204 }      # silently ignore
+
     state   = body.get("context", {})   # send your own ctx in webhook if you want
     reply, new_state, appointment = handle_message(msg, phone, state)
 
@@ -45,5 +57,6 @@ def lambda_handler(event, _ctx):
             json=appointment,
             timeout=10,
         )
+    
 
     return {"statusCode": 200, "body": json.dumps({"ok": True, "context": new_state})}
