@@ -25,7 +25,9 @@
   
   const getDatabaseConfig = () => {
     try {
-      const cfg = JSON.parse(localStorage.getItem('appConfig') || '{}');
+      const shop = sessionStorage.getItem('shopId') || 'demo-shop';
+      const storageKey = `appConfig_${shop}`;
+      const cfg = JSON.parse(localStorage.getItem(storageKey) || '{}');
       return cfg.database || {};
     } catch {
       return {};
@@ -46,23 +48,37 @@
      ---------------------------------------------------------------- */
   export async function fetchConfig(shop = shopId()) {
     if (isMockMode()) return {};
-    const headers = await authHeader();
-    const r = await fetch(`${API_BASE}/config?shop_id=${shop}`, { headers });
-    if (!r.ok) throw new Error(r.statusText);
-    return r.json(); // {} if nothing saved yet
+    try {
+      const headers = await authHeader();
+      const r = await fetch(`${API_BASE}/config?shop_id=${shop}`, { headers });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json(); // {} if nothing saved yet
+    } catch (error) {
+      console.error('Error fetching config:', error);
+      throw error;
+    }
   }
   
   export async function saveConfig(cfg, shop = shopId()) {
     if (isMockMode()) return;
-    const headers = await authHeader();
-    const payload = { ...cfg, shop_id: shop }; // partition key for DynamoDB
-    const r = await fetch(`${API_BASE}/config`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(payload),
-    });
-    if (!r.ok) throw new Error(await r.text());
-    return r.json();
+    try {
+      const headers = await authHeader();
+      
+      // Ensure shop_id is correctly set to the current user's shop ID
+      // The backend will use the shop_id from JWT claims but we set it explicitly for clarity
+      const payload = { ...cfg, shop_id: shop }; // partition key for DynamoDB
+      
+      const r = await fetch(`${API_BASE}/config`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    } catch (error) {
+      console.error('Error saving config:', error);
+      throw error;
+    }
   }
   
   /* ────────────────────────────────────────────────────────────────
@@ -134,45 +150,117 @@
   }
   
   /* ────────────────────────────────────────────────────────────────
-     5)  CUSTOMERS stub (later)
+     5)  CUSTOMERS API
      ---------------------------------------------------------------- */
-  export const fetchCustomers = async () => [];
+  export async function fetchCustomers() {
+    if (isMockMode()) {
+      return []; // TODO: Add mock customer data when needed
+    }
+
+    try {
+      const headers = await authHeader();
+      const r = await fetch(`${API_BASE}/customers?shop_id=${shopId()}`, { headers });
+      
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      return data.customers || [];
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      // Return empty array instead of throwing to avoid breaking UI
+      return [];
+    }
+  }
   
   /* ────────────────────────────────────────────────────────────────
-     6)  ChatGPT helper (unchanged here)
+     6)  ChatGPT helper
      ---------------------------------------------------------------- */
   export async function callChatApi(messages) {
-    /* left as-is – your existing code goes here */
+    if (isMockMode()) {
+      return Promise.resolve({
+        response: "This is a mock response. Please configure the OpenAI API to use the chat feature.",
+        success: true
+      });
+    }
+
+    try {
+      // Get config from localStorage
+      const shop = sessionStorage.getItem('shopId') || 'demo-shop';
+      const storageKey = `appConfig_${shop}`;
+      const cfg = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      
+      // Check if OpenAI is enabled and API key exists
+      if (!cfg.openai?.enabled || !cfg.openai?.apiKey) {
+        throw new Error('OpenAI is not enabled or API key is missing');
+      }
+      
+      const headers = await authHeader();
+      
+      // Use backend proxy instead of direct OpenAI call for security
+      const response = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ 
+          messages,
+          shop_id: shopId()
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error calling chat API:', error);
+      return {
+        error: error.message,
+        success: false
+      };
+    }
   }
   
   /* ────────────────────────────────────────────────────────────────
      7)  Legacy local-mock book helper
      ---------------------------------------------------------------- */
   function legacyMockBook(appt) {
+    // Create a unique ID for this appointment
+    const appointmentId = appt.id || 
+      `${appt.date}-${appt.start_time}-${appt.worker_id}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
     const withId = {
       ...appt,
-      id:
-        appt.id ||
-        `${appt.date}-${appt.start_time}-${appt.worker_id}-${Date.now()}`,
+      id: appointmentId,
+      shop_id: shopId(),
+      created_at: new Date().toISOString(),
     };
-    mockAppointments.push(withId);
+    
+    // Create a new array instead of mutating the existing one
+    // This is more thread-safe than directly pushing to the array
+    const updatedAppointments = [...mockAppointments, withId];
+    
+    // Replace the original array with the updated one atomically
+    mockAppointments.length = 0; 
+    mockAppointments.push(...updatedAppointments);
+    
+    // Persist to localStorage if available
+    try {
+      const shop = sessionStorage.getItem('shopId') || 'demo-shop';
+      const storageKey = `mockAppointments_${shop}`;
+      localStorage.setItem(storageKey, JSON.stringify(updatedAppointments));
+    } catch (error) {
+      console.error('Error saving mock appointment to localStorage:', error);
+    }
+    
     return Promise.resolve({
       success: true,
       message: 'Appointment saved locally (mock mode)',
-      id: withId.id,
+      id: appointmentId,
     });
   }
   
   /* ────────────────────────────────────────────────────────────────
-     8)  convenient default export
+     8)  API service exports
      ---------------------------------------------------------------- */
-  export default {
-    fetchConfig,
-    saveConfig,
-    fetchAppointments,
-    fetchWorkers,
-    fetchCustomers,
-    bookAppointment,
-    callChatApi,
-  };
+  // Only use named exports to maintain consistency
+  // No default export to avoid import confusion
   
