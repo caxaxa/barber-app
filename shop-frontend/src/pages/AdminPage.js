@@ -119,10 +119,17 @@ export default function AdminPage() {
           <Tab label="Empresa" />
           <Tab label="Assistente" />
           <Tab label="Tema" />
-          <Tab label="Terminologia" />
           <Tab label="Mensagens" />
-          <Tab label="Integração" />
-          <Tab label="Segurança" />
+          {/* Integration visible for pro plans only */}
+          {userRole !== 'free' && <Tab label="Integração" />}
+          {/* Calendário  – stub, disabled */}
+          {userRole !== 'free' && (
+            <Tab label="Sincronização de Calendário" disabled />
+          )}
+          {/* Enterprise-only placeholder */}
+          {userRole === 'enterprise' && (
+            <Tab label="Enterprise" disabled />
+         )}
         </Tabs>
       </AppBar>
 
@@ -141,24 +148,19 @@ export default function AdminPage() {
         <TabPanel value={tabValue} index={2}>
           <ThemeConfig />
         </TabPanel>
-
-        {/* Terminology Settings Tab */}
-        <TabPanel value={tabValue} index={3}>
-          <TerminologyConfig />
-        </TabPanel>
         
         {/* Messages Tab */}
-        <TabPanel value={tabValue} index={4}>
+        <TabPanel value={tabValue} index={3}>
           <MessagesConfig />
         </TabPanel>
         
         {/* Integration Tab */}
-        <TabPanel value={tabValue} index={5}>
+        <TabPanel value={tabValue} index={4}>
           <IntegrationConfig />
         </TabPanel>
         
         {/* Security Settings Tab */}
-        <TabPanel value={tabValue} index={7}>
+        <TabPanel value={tabValue} index={5}>
           <SecurityConfig />
         </TabPanel>
       </Container>

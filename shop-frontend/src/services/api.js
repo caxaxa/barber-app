@@ -1,121 +1,129 @@
-/* api.js – SAM back-end with Cognito auth & mock fallback */
+/* ────────────────────────────────────────────────────────────────
+   api.js – SAM back-end helper with Cognito auth & mock fallback
+   ----------------------------------------------------------------
+   – GET /config?shop_id=…         (Cognito-protected)
+   – PUT /config                   (Cognito-protected)
+   – GET /appointments?shop_id=…
+   – POST /appointments/book
+   – GET /workers
+   ---------------------------------------------------------------- */
 
-/* ── imports & local mock data ─────────────────────────── */
-import {
-  mockAppointments,
-  mockWorkers,
-  generateEmptyMockData,
-} from './mockData';
-
-/* ── env & helpers ─────────────────────────────────────── */
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3002';
-const shopId   = () => sessionStorage.getItem('shopId') || 'demo-shop';
-
-const isMockMode = () =>
-  !API_BASE ||
-  (API_BASE.startsWith('http://localhost') && !navigator.onLine);
-
-const getDatabaseConfig = () => {
-  try {
-    const cfg = JSON.parse(localStorage.getItem('appConfig') || '{}');
-    return cfg.database || {};
-  } catch {
-    return {};
+   import {
+    mockAppointments,
+    mockWorkers,
+    generateEmptyMockData,
+  } from './mockData';
+  
+  /* ── env & helpers ────────────────────────────────────────────── */
+  const API_BASE = process.env.REACT_APP_BACKEND_URL;
+  
+  const shopId = () => sessionStorage.getItem('shopId') || 'demo-shop';
+  
+  const isMockMode = () =>
+    !API_BASE ||
+    (API_BASE.startsWith('http://localhost') && !navigator.onLine);
+  
+  const getDatabaseConfig = () => {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('appConfig') || '{}');
+      return cfg.database || {};
+    } catch {
+      return {};
+    }
+  };
+  
+  /** Build headers with the JWT we stored after Hosted-UI login */
+  async function authHeader() {
+    const token = sessionStorage.getItem('idToken');
+    return {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
   }
-};
-
-/** Build headers with the JWT we stored after Hosted-UI login */
-async function authHeader() {
-  const token = sessionStorage.getItem('idToken')
-  return { 
-    "Authorization": `Bearer ${token}`, 
-    "Content-Type": "application/json" 
+  
+  /* ────────────────────────────────────────────────────────────────
+     1)  CONFIG  – GET & PUT (Cognito protected)
+     ---------------------------------------------------------------- */
+  export async function fetchConfig(shop = shopId()) {
+    if (isMockMode()) return {};
+    const headers = await authHeader();
+    const r = await fetch(`${API_BASE}/config?shop_id=${shop}`, { headers });
+    if (!r.ok) throw new Error(r.statusText);
+    return r.json(); // {} if nothing saved yet
   }
-}
-
-/* ── 1) Config – GET & PUT (protected) ───────────────── */
-export const fetchConfig = async () => {
-  const headers = await authHeader();
-  const r = await fetch(`${API_BASE}/config?shop_id=${shopId()}`, { headers });
-  if (!r.ok) throw new Error(r.statusText);
-  return r.json();
-};
-
-export const saveConfig = async (cfg) => {
-  const headers = await authHeader();
-  const payload = { ...cfg, shop_id: shopId() };
-  const r = await fetch(`${API_BASE}/config`, {
-    method: 'PUT',
-    headers,
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-};
-
-/* ── 2) Appointments – GET ─────────────────────────────── */
-export const fetchAppointments = async (dateISO) => {
-  if (isMockMode()) {
-    return mockAppointments.filter(a => !dateISO || a.date === dateISO);
+  
+  export async function saveConfig(cfg, shop = shopId()) {
+    if (isMockMode()) return;
+    const headers = await authHeader();
+    const payload = { ...cfg, shop_id: shop }; // partition key for DynamoDB
+    const r = await fetch(`${API_BASE}/config`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
   }
-  const headers = await authHeader();
-  const base = `${API_BASE}/appointments?shop_id=${shopId()}`;
-  const url = dateISO ? `${base}&date=${dateISO}` : base;
-  try {
+  
+  /* ────────────────────────────────────────────────────────────────
+     2)  APPOINTMENTS – GET
+     ---------------------------------------------------------------- */
+  export async function fetchAppointments(dateISO) {
+    /* Offline / mock */
+    if (isMockMode()) {
+      return mockAppointments.filter((a) => !dateISO || a.date === dateISO);
+    }
+  
+    const headers = await authHeader();
+    const base = `${API_BASE}/appointments?shop_id=${shopId()}`;
+    const url = dateISO ? `${base}&date=${dateISO}` : base;
+  
     const r = await fetch(url, { headers });
     if (!r.ok) throw new Error(r.statusText);
     return (await r.json()).appointments;
-  } catch (e) {
-    console.error('fetchAppointments → fallback to mock:', e);
-    return mockAppointments.filter(a => !dateISO || a.date === dateISO);
   }
-};
-
-/* ── 3) Workers – GET ─────────────────────────────────── */
-// src/services/api.js
-
-export async function fetchWorkers() {
-  const role = sessionStorage.getItem('userRole');
-
-  // 1) Individual tenant = single “worker” (the shop owner)
-  if (role === 'individual') {
-    const shopId     = sessionStorage.getItem('shopId');
-    const workerName = sessionStorage.getItem('workerName') || shopId;
-    return [{ worker_id: shopId, name: workerName }];
+  
+  /* ────────────────────────────────────────────────────────────────
+     3)  WORKERS – GET
+     ---------------------------------------------------------------- */
+  export async function fetchWorkers() {
+    const role = sessionStorage.getItem('userRole');
+  
+    /* 1) Individual tenant = single “worker” (the shop owner) */
+    if (role === 'individual') {
+      const ownerId   = sessionStorage.getItem('shopId');
+      const ownerName = sessionStorage.getItem('workerName') || ownerId;
+      return [{ worker_id: ownerId, name: ownerName }];
+    }
+  
+    /* 2) Mock / offline */
+    if (isMockMode()) {
+      const empty = getDatabaseConfig().useEmptyData === true;
+      return empty ? generateEmptyMockData().workers : mockWorkers;
+    }
+  
+    /* 3) Live call */
+    const headers = await authHeader();
+    const res     = await fetch(`${API_BASE}/workers`, { headers });
+    if (!res.ok) throw new Error(`Failed to fetch workers: ${res.statusText}`);
+  
+    const { workers = [] } = await res.json();
+    return workers.map((w) => ({
+      worker_id: w.worker_id,
+      name: w.name || w.worker_id,
+      ...w,
+    }));
   }
-
-  // 2) Offline/mock mode
-  if (isMockMode()) {
-    const empty = getDatabaseConfig().useEmptyData === true;
-    return empty ? generateEmptyMockData().workers : mockWorkers;
-  }
-
-  // 3) Live API call
-  const headers = await authHeader();
-  const res     = await fetch(`${API_BASE}/workers`, { headers });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch workers: ${res.status} ${res.statusText}`);
-  }
-
-  const body    = await res.json();                      // { workers: […] }
-  const workers = Array.isArray(body.workers) ? body.workers : [];
-
-  // 4) Ensure every worker has a `name`
-  return workers.map(w => ({
-    worker_id: w.worker_id,
-    name:      w.name || w.worker_id,
-    ...w
-  }));
-}
-
-
-// Legacy alias for backward compatibility
-/* ── 4) Appointments – POST ────────────────────────────── */
-export const bookAppointment = async (data) => {
-  if (isMockMode()) return legacyMockBook(data);
-  const headers = await authHeader();
-  const payload = { ...data, shop_id: shopId() };
-  try {
+  
+  /* ────────────────────────────────────────────────────────────────
+     4)  APPOINTMENTS – POST
+     ---------------------------------------------------------------- */
+  export async function bookAppointment(data) {
+    if (isMockMode()) return legacyMockBook(data);
+  
+    const headers = await authHeader();
+    const payload = { ...data, shop_id: shopId() };
+  
     const r = await fetch(`${API_BASE}/appointments/book`, {
       method: 'POST',
       headers,
@@ -123,43 +131,48 @@ export const bookAppointment = async (data) => {
     });
     if (!r.ok) throw new Error(await r.text());
     return r.json();
-  } catch (e) {
-    console.error('bookAppointment → fallback to mock:', e);
-    return legacyMockBook(data);
   }
-};
-
-/* ── 5) Customers stub ────────────────────────────────── */
-export const fetchCustomers = async () => {
-  return [];
-};
-
-/* ── 6) ChatGPT helper (if you have one) ───────────── */
-export const callChatApi = async (messages) => {
-  // unchanged
-};
-
-/* ── 7) Legacy mock helper ───────────────────────────── */
-function legacyMockBook(appt) {
-  const withId = {
-    ...appt,
-    id: appt.id || `${appt.date}-${appt.start_time}-${appt.worker_id || appt.worker_id}-${Date.now()}`,
+  
+  /* ────────────────────────────────────────────────────────────────
+     5)  CUSTOMERS stub (later)
+     ---------------------------------------------------------------- */
+  export const fetchCustomers = async () => [];
+  
+  /* ────────────────────────────────────────────────────────────────
+     6)  ChatGPT helper (unchanged here)
+     ---------------------------------------------------------------- */
+  export async function callChatApi(messages) {
+    /* left as-is – your existing code goes here */
+  }
+  
+  /* ────────────────────────────────────────────────────────────────
+     7)  Legacy local-mock book helper
+     ---------------------------------------------------------------- */
+  function legacyMockBook(appt) {
+    const withId = {
+      ...appt,
+      id:
+        appt.id ||
+        `${appt.date}-${appt.start_time}-${appt.worker_id}-${Date.now()}`,
+    };
+    mockAppointments.push(withId);
+    return Promise.resolve({
+      success: true,
+      message: 'Appointment saved locally (mock mode)',
+      id: withId.id,
+    });
+  }
+  
+  /* ────────────────────────────────────────────────────────────────
+     8)  convenient default export
+     ---------------------------------------------------------------- */
+  export default {
+    fetchConfig,
+    saveConfig,
+    fetchAppointments,
+    fetchWorkers,
+    fetchCustomers,
+    bookAppointment,
+    callChatApi,
   };
-  mockAppointments.push(withId);
-  return Promise.resolve({
-    success: true,
-    message: 'Appointment saved locally (mock mode)',
-    id: withId.id,
-  });
-}
-
-/* ── 8) default export ───────────────────────────────── */
-export default {
-  fetchConfig,
-  saveConfig,
-  fetchAppointments,
-  fetchWorkers,
-  fetchCustomers,
-  bookAppointment,
-  callChatApi,
-};
+  

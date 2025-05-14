@@ -6,13 +6,27 @@ Description: Worker Appointment Scheduling – single-table, multi-tenant backen
 # Parameters – IDs of your already-existing Cognito pool + client
 ##############################################################################
 
+
+
 Parameters:
   ExistingUserPoolId:
     Type: String
     Description: us-east-2_GDqu3Yx7v
+
   ExistingUserPoolClientId:
     Type: String
     Description: 5gcfno4cq49o9vddo8b85308qd
+
+  EvoBaseUrl:                      # ← NEW
+    Type: String
+    Description: Base URL of your Evolution-API cluster
+    Default: https://evolution-api-production-ad04.up.railway.app   # or leave blank & pass in
+
+  EvoApiKey:                       # ← NEW
+    Type: String
+    NoEcho: true                   # hides value in CloudTrail/console
+    Description: API key for Evolution-API
+
 
 ##########################################################################
 # Resources
@@ -216,8 +230,8 @@ Resources:
       Timeout: 15
       Environment:
         Variables:
-          EVO_BASE_URL:   https://evolution-api-production-ad04.up.railway.app
-          EVO_API_KEY:    429683C4C977415CAAFCCE10F7D57E11
+          EVO_BASE_URL: !Ref EvoBaseUrl
+          EVO_API_KEY:  !Ref EvoApiKey
           PUBLIC_API_URL: !Sub "https://${AppPublicApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
           PUBLIC_API_KEY: rE4H9alXxFaDjcRRp8vGv9ran0H5z4RW8SGNTtDP
       Events:
@@ -227,6 +241,58 @@ Resources:
             ApiId: !Ref WhatsAppInApi
             Path: /whatsapp-in
             Method: POST
+
+
+  WhatsAppConnect:                # POST /whatsapp/connect
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.11
+      Handler: whatsapp_admin.connect_handler
+      CodeUri: . 
+      Timeout: 20
+      Environment:
+        Variables:
+          EVO_BASE_URL:   !Ref EvoBaseUrl    # make these Parameters
+          EVO_API_KEY:    !Ref EvoApiKey
+          CONFIGS_TABLE:  !Ref ConfigsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConfigsTable
+        - Statement:       # allow outbound https
+            - Effect: Allow
+              Action: "execute-api:Invoke"
+              Resource: "*"
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WorkerHttpApi
+            Path:   /whatsapp/connect
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer   # owner only
+  WhatsAppLists:                  # PATCH /whatsapp/lists
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.11
+      Handler: whatsapp_admin.lists_handler
+      CodeUri: . 
+      Timeout: 10
+      Environment:
+        Variables:
+          CONFIGS_TABLE: !Ref ConfigsTable
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref ConfigsTable }
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WorkerHttpApi
+            Path:   /whatsapp/lists
+            Method: PATCH
+            Auth:
+              Authorizer: CognitoAuthorizer
+
 
 ##############################################################################
 # 5)  Outputs
