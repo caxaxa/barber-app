@@ -50,12 +50,22 @@
     if (isMockMode()) return {};
     try {
       const headers = await authHeader();
+      
+      // If token is missing, return empty config to prevent 401 errors
+      if (!headers.Authorization || headers.Authorization === 'Bearer undefined' || headers.Authorization === 'Bearer null') {
+        console.warn('Missing authentication token, returning empty config');
+        return {};
+      }
+      
       const r = await fetch(`${API_BASE}/config?shop_id=${shop}`, { headers });
-      if (!r.ok) throw new Error(await r.text());
+      if (!r.ok) {
+        console.warn(`API responded with status ${r.status}: ${r.statusText}`);
+        return {}; // Return empty config instead of throwing
+      }
       return r.json(); // {} if nothing saved yet
     } catch (error) {
       console.error('Error fetching config:', error);
-      throw error;
+      return {}; // Return empty config instead of throwing
     }
   }
   
@@ -90,13 +100,30 @@
       return mockAppointments.filter((a) => !dateISO || a.date === dateISO);
     }
   
-    const headers = await authHeader();
-    const base = `${API_BASE}/appointments?shop_id=${shopId()}`;
-    const url = dateISO ? `${base}&date=${dateISO}` : base;
-  
-    const r = await fetch(url, { headers });
-    if (!r.ok) throw new Error(r.statusText);
-    return (await r.json()).appointments;
+    try {
+      const headers = await authHeader();
+      
+      // If token is missing, return empty appointments to prevent 401 errors
+      if (!headers.Authorization || headers.Authorization === 'Bearer undefined' || headers.Authorization === 'Bearer null') {
+        console.warn('Missing authentication token, returning empty appointments');
+        return [];
+      }
+      
+      const base = `${API_BASE}/appointments?shop_id=${shopId()}`;
+      const url = dateISO ? `${base}&date=${dateISO}` : base;
+    
+      const r = await fetch(url, { headers });
+      if (!r.ok) {
+        console.warn(`API responded with status ${r.status}: ${r.statusText}`);
+        return []; // Return empty array instead of throwing
+      }
+      
+      const data = await r.json();
+      return data.appointments || [];
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+      return []; // Return empty array instead of throwing
+    }
   }
   
   /* ────────────────────────────────────────────────────────────────
@@ -135,7 +162,10 @@
      4)  APPOINTMENTS – POST
      ---------------------------------------------------------------- */
   export async function bookAppointment(data) {
-    if (isMockMode()) return legacyMockBook(data);
+    // Generate ICS file content for calendar integration
+    const icsContent = generateIcsFile(data);
+    
+    if (isMockMode()) return legacyMockBook(data, icsContent);
   
     const headers = await authHeader();
     const payload = { ...data, shop_id: shopId() };
@@ -146,7 +176,16 @@
       body: JSON.stringify(payload),
     });
     if (!r.ok) throw new Error(await r.text());
-    return r.json();
+    
+    // Get the response data
+    const responseData = await r.json();
+    
+    // Add ICS content to the response
+    return {
+      ...responseData,
+      icsContent,
+      icsFilename: `appointment_${data.date.replace(/\//g, '')}_${data.start_time.replace(':', '')}.ics`
+    };
   }
   
   /* ────────────────────────────────────────────────────────────────
@@ -222,7 +261,7 @@
   /* ────────────────────────────────────────────────────────────────
      7)  Legacy local-mock book helper
      ---------------------------------------------------------------- */
-  function legacyMockBook(appt) {
+  function legacyMockBook(appt, icsContent) {
     // Create a unique ID for this appointment
     const appointmentId = appt.id || 
       `${appt.date}-${appt.start_time}-${appt.worker_id}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -251,15 +290,103 @@
       console.error('Error saving mock appointment to localStorage:', error);
     }
     
+    // Generate ICS filename
+    const icsFilename = `appointment_${appt.date.replace(/\//g, '')}_${appt.start_time.replace(':', '')}.ics`;
+    
     return Promise.resolve({
       success: true,
       message: 'Appointment saved locally (mock mode)',
       id: appointmentId,
+      icsContent, // Include ICS content in the response
+      icsFilename // Include ICS filename in the response
     });
   }
   
   /* ────────────────────────────────────────────────────────────────
-     8)  API service exports
+     8)  ICS Calendar file generation
+     ---------------------------------------------------------------- */
+  function generateIcsFile(appointmentData) {
+    // Format appointment date and time as YYYYMMDDTHHMMSSZ
+    const formatDate = (dateStr, timeStr) => {
+      let date;
+      
+      // Handle both YYYY-MM-DD and DD/MM/YYYY formats
+      if (dateStr.includes('-')) {
+        // YYYY-MM-DD format
+        date = new Date(`${dateStr}T${timeStr}:00`);
+      } else if (dateStr.includes('/')) {
+        // DD/MM/YYYY format
+        const [day, month, year] = dateStr.split('/');
+        date = new Date(`${year}-${month}-${day}T${timeStr}:00`);
+      } else {
+        // Invalid date format
+        console.error('Invalid date format:', dateStr);
+        // Use current date as fallback
+        date = new Date();
+      }
+      
+      return date.toISOString().replace(/-|:|\.\d{3}/g, '');
+    };
+    
+    // Start date and duration calculation
+    const startDate = formatDate(appointmentData.date, appointmentData.start_time);
+    
+    // Calculate end time based on duration (default to 30 min if not provided)
+    const duration = appointmentData.duration || 30;
+    const startDateObj = new Date(startDate.substring(0, 4) + '-' + 
+                                 startDate.substring(4, 6) + '-' + 
+                                 startDate.substring(6, 8) + 'T' + 
+                                 startDate.substring(9, 11) + ':' + 
+                                 startDate.substring(11, 13) + ':00Z');
+    const endDateObj = new Date(startDateObj.getTime() + (duration * 60 * 1000));
+    const endDate = endDateObj.toISOString().replace(/-|:|\.\d{3}/g, '');
+    
+    // Get current timestamp for creation date
+    const now = new Date().toISOString().replace(/-|:|\.\d{3}/g, '');
+    
+    // Get business and appointment details
+    const config = getDatabaseConfig();
+    const businessName = config.business?.name || 'Empresa';
+    const businessAddress = config.business?.address || '';
+    const serviceName = appointmentData.service_name || 'Consulta';
+    const workerName = appointmentData.worker_name || 'Profissional';
+    const customerName = appointmentData.customer_name || 'Cliente';
+    
+    // Generate a unique ID for the calendar event
+    const uid = `${appointmentData.id || Date.now()}@${window.location.hostname || 'booking.app'}`;
+    
+    // Create the ICS content following RFC 5545 standard
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//AiSol//WhatsApp Booking//PT',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${uid}`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${startDate}`,
+      `DTEND:${endDate}`,
+      `SUMMARY:${serviceName} com ${workerName}`,
+      `DESCRIPTION:Atendimento de ${serviceName} com ${workerName} para ${customerName}`,
+      `LOCATION:${businessAddress}`,
+      `ORGANIZER;CN=${businessName}:mailto:noreply@example.com`,
+      'STATUS:CONFIRMED',
+      'SEQUENCE:0',
+      'BEGIN:VALARM',
+      'TRIGGER:-PT30M',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:Lembrete',
+      'END:VALARM',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+    
+    return icsContent;
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     9)  API service exports
      ---------------------------------------------------------------- */
   // Only use named exports to maintain consistency
   // No default export to avoid import confusion

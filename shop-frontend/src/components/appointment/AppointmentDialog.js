@@ -23,12 +23,19 @@ export default function AppointmentDialog({
   refreshAppointments,
   workers = [],
 }) {
+  // Ensure initialDate is in YYYY-MM-DD format
   const initialDate = dateTime || '';
+  
+  // Add debugging to help understand the date format
+  if (dateTime) {
+    console.log('Initial dateTime value:', dateTime);
+  }
   const { showNotification } = useNotification();
   const { config } = useConfig();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     worker_id: '',
+    service_id: '',
     date: initialDate,
     start_time: '',
     duration: config?.business?.appointmentDuration || 40,
@@ -43,27 +50,49 @@ export default function AppointmentDialog({
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.date || !formData.start_time || !formData.worker_id) {
-      showNotification('Please fill in worker, date, and start time.', 'error');
+    if (!formData.date || !formData.start_time || !formData.worker_id || !formData.service_id) {
+      showNotification('Por favor, preencha todos os campos obrigatórios.', 'error');
       return;
     }
     
+    // Validate date format (should be YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(formData.date)) {
+      console.error('Invalid date format:', formData.date);
+      showNotification('Formato de data inválido. Use o formato YYYY-MM-DD.', 'error');
+      return;
+    }
+    
+    // Validate time format (should be HH:MM)
+    const timeRegex = /^\d{2}:\d{2}$/;
+    if (!timeRegex.test(formData.start_time)) {
+      console.error('Invalid time format:', formData.start_time);
+      showNotification('Formato de hora inválido. Use o formato HH:MM.', 'error');
+      return;
+    }
+    
+    console.log('Submitting appointment with data:', formData);
     setIsSubmitting(true);
     
     try {
-      // Add worker_name to the appointment data for better error messages
+      // Get selected service and worker information for better details
       const selectedWorker = workers.find(w => w.worker_id === formData.worker_id);
-      const appointmentWithWorkerName = {
+      const selectedService = config?.services?.items.find(s => s.id === formData.service_id);
+      
+      // Update duration based on selected service
+      const appointmentData = {
         ...formData,
-        worker_name: selectedWorker?.name || ''
+        duration: selectedService?.duration || formData.duration,
+        worker_name: selectedWorker?.name || '',
+        service_name: selectedService?.name || ''
       };
       
-      await bookAppointment(appointmentWithWorkerName);
-      showNotification('Appointment booked successfully!', 'success');
+      await bookAppointment(appointmentData);
+      showNotification('Agendamento realizado com sucesso!', 'success');
       onClose();
       refreshAppointments();
     } catch (error) {
-      showNotification(error.message || 'Error booking appointment.', 'error');
+      showNotification(error.message || 'Erro ao realizar agendamento.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -72,6 +101,7 @@ export default function AppointmentDialog({
   const resetForm = () => {
     setFormData({
       worker_id: '',
+      service_id: '',
       date: initialDate,
       start_time: '',
       duration: config?.business?.appointmentDuration || 40,
@@ -148,6 +178,36 @@ export default function AppointmentDialog({
               }}
               helperText={`Os horários são disponíveis a cada ${config?.business?.appointmentInterval || 10} minutos`}
             />
+          </Box>
+
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+              {config?.services?.label?.singular || 'Serviço'}
+            </Typography>
+            <Select
+              name="service_id"
+              value={formData.service_id}
+              onChange={handleChange}
+              fullWidth
+              required
+              displayEmpty
+              sx={{ 
+                mt: 1, 
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2
+                }
+              }}
+              inputProps={{ 'aria-label': 'select service' }}
+            >
+              <MenuItem disabled value="">
+                <em>Selecione um {config?.services?.label?.singular?.toLowerCase() || 'serviço'}</em>
+              </MenuItem>
+              {(config?.services?.items || []).map((service) => (
+                <MenuItem key={service.id} value={service.id}>
+                  {service.name} - {service.duration} min - R$ {service.price.toFixed(2)}
+                </MenuItem>
+              ))}
+            </Select>
           </Box>
 
           <Box sx={{ mb: 3 }}>

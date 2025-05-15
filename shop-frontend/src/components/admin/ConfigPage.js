@@ -38,6 +38,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RestoreIcon from '@mui/icons-material/Restore';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useConfig } from '../../context/ConfigContext';
+import WhatsAppConfig from './config/WhatsAppConfig';
 
 // Tab Panel Component
 function TabPanel(props) {
@@ -341,7 +342,7 @@ function ConfigPage({ onBack }) {
           <Tab label="Tema" />
           <Tab label="Terminologia" />
           <Tab label="Mensagens" />
-          <Tab label="Integração" />
+          <Tab label="WhatsApp" />
           <Tab label="Segurança" />
         </Tabs>
       </AppBar>
@@ -1039,7 +1040,7 @@ function ConfigPage({ onBack }) {
               Integração e Sincronização
             </Typography>
             <Typography variant="body2" color="text.secondary" paragraph>
-              Configure as integrações com WhatsApp, Google Calendar e OpenAI.
+              Configure as integrações com OpenAI e Google Calendar.
             </Typography>
             <Divider sx={{ my: 3 }} />
             
@@ -1116,64 +1117,6 @@ function ConfigPage({ onBack }) {
               </Grid>
             </Box>
             
-            {/* WhatsApp Integration Section */}
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="h6" gutterBottom color="primary">
-                Integração WhatsApp
-              </Typography>
-              <Grid container spacing={3}>
-                <Grid item xs={12}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={currentConfig?.messaging?.whatsappIntegration?.enabled || false}
-                        onChange={(e) => handleWhatsAppIntegrationChange('enabled', e.target.checked)}
-                      />
-                    }
-                    label="Ativar integração com WhatsApp"
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="Número de WhatsApp Business"
-                    fullWidth
-                    value={currentConfig?.messaging?.whatsappIntegration?.phoneNumber || ''}
-                    onChange={(e) => handleWhatsAppIntegrationChange('phoneNumber', e.target.value)}
-                    margin="normal"
-                    disabled={!currentConfig?.messaging?.whatsappIntegration?.enabled}
-                    helperText="Formato: +5511999999999"
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth margin="normal">
-                    <InputLabel>Provedor de API</InputLabel>
-                    <Select
-                      value={currentConfig?.messaging?.whatsappIntegration?.provider || 'twilio'}
-                      onChange={(e) => handleWhatsAppIntegrationChange('provider', e.target.value)}
-                      disabled={!currentConfig?.messaging?.whatsappIntegration?.enabled}
-                      label="Provedor de API"
-                    >
-                      <MenuItem value="twilio">Twilio</MenuItem>
-                      <MenuItem value="whatsapp-business">WhatsApp Business API</MenuItem>
-                    </Select>
-                    <FormHelperText>Selecione o provedor de integração com WhatsApp</FormHelperText>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="API Key"
-                    fullWidth
-                    type="password"
-                    value={currentConfig?.messaging?.whatsappIntegration?.apiKey || ''}
-                    onChange={(e) => handleWhatsAppIntegrationChange('apiKey', e.target.value)}
-                    margin="normal"
-                    disabled={!currentConfig?.messaging?.whatsappIntegration?.enabled}
-                    helperText="Chave de API do provedor selecionado"
-                  />
-                </Grid>
-              </Grid>
-            </Box>
-            
             {/* Google Calendar Integration */}
             <Box>
               <Typography variant="h6" gutterBottom color="primary">
@@ -1215,11 +1158,16 @@ function ConfigPage({ onBack }) {
           </Paper>
         </TabPanel>
         
-        {/* Database Tab */}
+        {/* WhatsApp Tab */}
         <TabPanel value={tabValue} index={6}>
+          <WhatsAppConfig />
+        </TabPanel>
+        
+        {/* Database Tab */}
+        <TabPanel value={tabValue} index={7}>
           <Paper sx={{ p: 3, borderRadius: 2, maxHeight: 'calc(100vh - 160px)', overflow: 'auto' }}>
             <Typography variant="h5" gutterBottom>
-              Configuração do Banco de Dados
+              Banco de Dados
             </Typography>
             <Typography variant="body2" color="text.secondary" paragraph>
               Configure o tipo de banco de dados e suas respectivas configurações.
@@ -1376,7 +1324,7 @@ function ConfigPage({ onBack }) {
         </TabPanel>
         
         {/* Security Settings Tab */}
-        <TabPanel value={tabValue} index={7}>
+        <TabPanel value={tabValue} index={8}>
           <Paper sx={{ p: 3, borderRadius: 2, maxHeight: 'calc(100vh - 160px)', overflow: 'auto' }}>
             <Typography variant="h5" gutterBottom>
               Segurança

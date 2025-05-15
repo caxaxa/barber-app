@@ -15,7 +15,8 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
-  Snackbar
+  Snackbar,
+  CssBaseline
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -25,9 +26,10 @@ import AssistantConfig from '../components/admin/config/AssistantConfig';
 import ThemeConfig from '../components/admin/config/ThemeConfig';
 import TerminologyConfig from '../components/admin/config/TerminologyConfig';
 import MessagesConfig from '../components/admin/config/MessagesConfig';
-import IntegrationConfig from '../components/admin/config/IntegrationConfig';
 import SecurityConfig from '../components/admin/config/SecurityConfig';
+import WhatsAppConfig from '../components/admin/config/WhatsAppConfig';
 import TestEnvironment from './TestEnvironment';
+import Footer from '../components/common/Footer';
 
 export default function AdminPage() {
   const { config, updateConfig, resetConfig, signOut, getUserRole } = useConfig();
@@ -73,28 +75,35 @@ export default function AdminPage() {
     };
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static" color="default" elevation={1}>
+    <Box sx={{ 
+      display: 'flex', 
+      flexDirection: 'column',
+      minHeight: '100vh',
+      backgroundColor: '#f8f9fa'
+    }}>
+      <CssBaseline />
+      
+      <AppBar position="static" color="primary" elevation={3}>
         <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1, ml: 2 }}>
+          <Typography variant="h6" sx={{ flexGrow: 1, ml: 2, fontWeight: 'bold', letterSpacing: 0.5 }}>
             {isEnterpriseAccount ? 'Configurações Empresariais' : 'Configurações Individuais'}
           </Typography>
           
           <Button
-            color="primary"
-            variant="contained"
+            color="inherit"
+            variant="outlined"
             startIcon={<PlayArrowIcon />}
             onClick={handleLaunchTestEnvironment}
-            sx={{ mr: 2 }}
+            sx={{ mr: 2, borderRadius: 2 }}
           >
             Testar Ambiente
           </Button>
           
           <Button
-            color="primary"
+            color="inherit"
             variant="outlined"
             onClick={handleSave}
-            sx={{ mr: 2 }}
+            sx={{ mr: 2, borderRadius: 2 }}
           >
             Salvar
           </Button>
@@ -103,6 +112,10 @@ export default function AdminPage() {
             color="inherit"
             onClick={handleLogout}
             aria-label="logout"
+            sx={{ 
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)' }
+            }}
           >
             <LogoutIcon />
           </IconButton>
@@ -111,17 +124,25 @@ export default function AdminPage() {
         <Tabs
           value={tabValue}
           onChange={handleTabChange}
-          indicatorColor="primary"
-          textColor="primary"
+          indicatorColor="secondary"
+          textColor="inherit"
           variant="scrollable"
           scrollButtons="auto"
+          sx={{ 
+            '& .MuiTab-root': { 
+              fontWeight: 500,
+              minWidth: 'auto',
+              px: 3,
+              py: 1.5
+            }
+          }}
         >
           <Tab label="Empresa" />
           <Tab label="Assistente" />
           <Tab label="Tema" />
           <Tab label="Mensagens" />
-          {/* Integration visible for pro plans only */}
-          {userRole !== 'free' && <Tab label="Integração" />}
+          {/* WhatsApp integration visible for non-free plans */}
+          {userRole !== 'free' && <Tab label="WhatsApp" />}
           {/* Calendário  – stub, disabled */}
           {userRole !== 'free' && (
             <Tab label="Sincronização de Calendário" disabled />
@@ -133,7 +154,15 @@ export default function AdminPage() {
         </Tabs>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4, height: 'calc(100vh - 120px)' }}>
+      <Container 
+        maxWidth="lg" 
+        sx={{ 
+          mt: 4, 
+          mb: 4, 
+          flexGrow: 1,
+          paddingBottom: 8
+        }}
+      >
         {/* Business Settings Tab */}
         <TabPanel value={tabValue} index={0}>
           <BusinessConfig />
@@ -154,9 +183,9 @@ export default function AdminPage() {
           <MessagesConfig />
         </TabPanel>
         
-        {/* Integration Tab */}
+        {/* WhatsApp Tab */}
         <TabPanel value={tabValue} index={4}>
-          <IntegrationConfig />
+          <WhatsAppConfig />
         </TabPanel>
         
         {/* Security Settings Tab */}
@@ -164,6 +193,9 @@ export default function AdminPage() {
           <SecurityConfig />
         </TabPanel>
       </Container>
+      
+      {/* Footer */}
+      <Footer />
       
       {/* Reset Confirmation Dialog */}
       <Dialog
@@ -216,9 +248,25 @@ function TabPanel(props) {
       id={`config-tabpanel-${index}`}
       aria-labelledby={`config-tab-${index}`}
       {...other}
-      style={{ padding: '24px 0' }}
+      style={{ 
+        padding: '24px 0',
+        transition: 'opacity 0.3s ease-in-out',
+        opacity: value === index ? 1 : 0,
+        height: value === index ? 'auto' : 0,
+      }}
     >
-      {value === index && <Box>{children}</Box>}
+      {value === index && (
+        <Box
+          sx={{
+            backgroundColor: 'white',
+            borderRadius: 2,
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)',
+            overflow: 'hidden'
+          }}
+        >
+          {children}
+        </Box>
+      )}
     </div>
   );
 }

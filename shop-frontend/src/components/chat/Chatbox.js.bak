@@ -254,28 +254,17 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
       return 'Nenhum horário disponível.';
     }
     
-    // For debugging - log each time entry to see its structure
-    if (availableTimes.length > 0) {
-      console.log("Time entries structure:", 
-        typeof availableTimes[0], 
-        JSON.stringify(availableTimes[0]).substring(0, 50)
-      );
-    }
-    
     const header = 'Escolha um horário digitando o número correspondente:';
-    const options = availableTimes.map((time, index) => {
-      // Handle both string and object time formats
-      const timeStr = typeof time === 'object' && time.formatted ? time.formatted : String(time);
-      return `${index + 1}. ${timeStr}`;
-    }).join('\n');
+    const options = availableTimes.map((time, index) => 
+      `${index + 1}. ${time}`
+    ).join('\n');
     
     return `${header}\n\n${options}`;
   };
   
-  // Use the config from the component scope
   const getPromptText = () => {
-    // Use the config already defined at the component level
-    // No need to call useConfig() again
+    // Re-read the config to ensure it's accessible
+    const { config, getUserRole } = useConfig();
     
     const businessType = config?.business?.type?.toUpperCase() || 'BARBEARIA';
     const businessName = config?.business?.name || 'Barbearia Elite';
@@ -567,8 +556,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     
     const [startHour, startMinute] = openTime.split(':').map(Number);
     const [endHour, endMinute] = closeTime.split(':').map(Number);
-    // Force 10-minute intervals to reduce the number of options
-    const interval = 10;
+    const interval = config?.business?.appointmentInterval || 10;
     
     // Check if timeSlotCache already has times for this day/worker combo
     const cacheKey = `${workerId}-${date}`;
@@ -1175,8 +1163,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             if (openTime && closeTime) {
               const [startHour, startMinute] = openTime.split(':').map(Number);
               const [endHour, endMinute] = closeTime.split(':').map(Number);
-              // Force 10-minute intervals to reduce the number of options
-    const interval = 10;
+              const interval = config?.business?.appointmentInterval || 10;
               
               // Create default time slots based on business hours
               const defaultTimes = [];
@@ -1247,8 +1234,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             const [openTime, closeTime] = businessHours.split('-');
             const [startHour, startMinute] = openTime.split(':').map(Number);
             const [endHour, endMinute] = closeTime.split(':').map(Number);
-            // Force 10-minute intervals to reduce the number of options
-    const interval = 10;
+            const interval = config?.business?.appointmentInterval || 10;
             
             let currentHour = startHour;
             let currentMinute = startMinute;
@@ -2051,149 +2037,18 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       }
     }
     
-    // Process numeric input similarly to the WhatsApp integration
-    let processedText = textToSend;
-    // We'll also track what to display in the user message bubble
-    let displayText = textToSend;
-    
-    // If the input is a pure number, we need to translate it
-    const numericInput = textToSend.trim().match(/^(\d+)$/);
-    if (numericInput) {
-      // Extract the number directly
-      const directNumber = parseInt(textToSend.trim(), 10);
-      if (isNaN(directNumber)) return;  // Not a valid number
-      
-      // Index is zero-based (option 1 → index 0)
-      const optionIndex = directNumber - 1;
-            
-      // Handle service selection (step 2)
-      if (ctx.step === 2) {
-        const services = getSuggestedOptions(ctx);
-        if (services && optionIndex >= 0 && optionIndex < services.length) {
-          processedText = services[optionIndex];
-          console.log(`✅ [Service] ${textToSend} → "${processedText}"`);
-        }
-      }
-      
-      // Handle worker selection (step 3)
-      if (ctx.step === 3) {
-        const workers = getSuggestedOptions(ctx);
-        if (workers && optionIndex >= 0 && optionIndex < workers.length) {
-          processedText = workers[optionIndex];
-          console.log(`✅ [Worker] ${textToSend} → "${processedText}"`);
-        }
-      }
-      
-      // Handle confirmation (step 6)
-      if (ctx.step === 6) {
-        if (optionIndex === 0) { 
-          processedText = 'sim';
-          console.log(`✅ [Confirm] ${textToSend} → "${processedText}"`);
-        }
-        if (optionIndex === 1) { 
-          processedText = 'não';
-          console.log(`✅ [Confirm] ${textToSend} → "${processedText}"`);
-        }
-      }
-      
-      // Handle time selection (step 5)
-      if (ctx.step === 5) {
-        // Dump available time slots for debugging
-        console.log(`⚓ Time selection - checking ${textToSend} against ${availableTimes.length} options`);
-        if (availableTimes.length > 0) {
-          console.log(`⚓ First 3 time entries: ${JSON.stringify(availableTimes.slice(0, 3))}`);
-        }
-        
-        // Get available time slots from the state - ensuring consistent formatting
-        const availableTimeSlots = availableTimes.map(time => {
-          // Convert objects to strings if needed
-          const timeStr = typeof time === 'object' && time.formatted 
-            ? time.formatted 
-            : String(time);
-          return timeStr;
-        });
-        
-        console.log(`⚓ Converted first 3 time slots: ${availableTimeSlots.slice(0, 3).join(', ')}`);
-        
-        // ALWAYS print the numeric option the user entered - for direct debugging
-        if (directNumber > 0 && directNumber <= availableTimeSlots.length) {
-          console.log(`🔍 User entered option ${directNumber} which should be: "${availableTimeSlots[directNumber - 1]}"`);
-        } else {
-          console.log(`🔍 User entered option ${directNumber} which is out of range (1-${availableTimeSlots.length})`);
-        }
-        
-        // Try direct number matching first
-        if (availableTimeSlots.length > 0 && directNumber > 0 && directNumber <= availableTimeSlots.length) {
-          processedText = availableTimeSlots[directNumber - 1];
-          displayText = processedText; // Update the display text too
-          console.log(`✅ [Time-direct] ${textToSend} → "${processedText}"`);
-        }
-        // Fallback to index-based if direct matching fails
-        else if (availableTimeSlots.length > 0 && optionIndex >= 0 && optionIndex < availableTimeSlots.length) {
-          processedText = availableTimeSlots[optionIndex];
-          displayText = processedText; // Update the display text too
-          console.log(`✅ [Time-index] ${textToSend} → "${processedText}"`);
-        } else {
-          console.log(`⚠️ [Time] Failed to convert ${textToSend}. Available slots: ${availableTimeSlots.length}`);
-        }
-      }
-      
-      // Handle date selection (step 4)
-      if (ctx.step === 4) {
-        // Get available dates from the state
-        const availableDateOptions = availableDates.map(date => date.display);
-        
-        // Function to convert display date to YYYY-MM-DD
-        const formatDate = (displayStr) => {
-          // Extract the date from something like "qua., 14/05"
-          const match = displayStr.match(/(\d{2})\/(\d{2})/);
-          if (match) {
-            const day = match[1];
-            const month = match[2];
-            const year = new Date().getFullYear();
-            return `${year}-${month}-${day}`;
-          }
-          return displayStr;
-        };
-        
-        // Try direct number matching first
-        if (availableDateOptions.length > 0 && directNumber > 0 && directNumber <= availableDateOptions.length) {
-          const displayDate = availableDateOptions[directNumber - 1];
-          processedText = formatDate(displayDate); // For backend processing
-          displayText = displayDate;               // For user display in chat
-          console.log(`✅ [Date-direct] ${textToSend} → "${displayDate}" → "${processedText}"`);
-        }
-        // Fallback to index-based if direct matching fails
-        else if (availableDateOptions.length > 0 && optionIndex >= 0 && optionIndex < availableDateOptions.length) {
-          const displayDate = availableDateOptions[optionIndex];
-          processedText = formatDate(displayDate); // For backend processing
-          displayText = displayDate;               // For user display in chat
-          console.log(`✅ [Date-index] ${textToSend} → "${displayDate}" → "${processedText}"`);
-        } else {
-          console.log(`⚠️ [Date] Failed to convert ${textToSend}. Available dates: ${availableDateOptions.length}`);
-        }
-      }
-    }
-    
     // Handle differently based on guided vs free mode
     if (isGuidedMode()) {
-      const { reply, context, appointment } = handleMessage(processedText, {
+      const { reply, context, appointment } = handleMessage(textToSend, {
         ...ctx,
         workers   // fresh list
       });
 
-      // Always use our displayText for showing in the chat
-      // But use processedText for backend processing
-      console.log(`📝 [Final] Input: "${textToSend}" → Display: "${displayText}" → Process: "${processedText}"`);
-      
       setMessages(prev => [
         ...prev,
-        { role: 'user', content: displayText }, // Show the converted value to the user
+        { role: 'user', content: textToSend },
         { role: 'assistant', content: reply }
       ]);
-      
-      // For debugging - log what was processed
-      console.log(`Input: "${textToSend}" → Processed: "${processedText}" → Displayed: "${displayText}"`);
       setCtx(context);
 
       if (appointment) {
@@ -2249,52 +2104,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       return;        // ✅ done, skip the free-mode branch
     } else {
       // In free mode, use the API
-      
-      // In free mode, we want to do the same kind of conversion
-      // We'll just reuse all the same logic we created for guided mode
-      
-      // Copy the input text
-      const freeTextToSend = userMessage.content;
-      // Process it using the same logic
-      let freeProcessedText = freeTextToSend;
-      let freeDisplayText = freeTextToSend;
-      
-      // Only process if it's a number
-      const freeNumericInput = freeTextToSend.trim().match(/^(\d+)$/);
-      if (freeNumericInput) {
-        const freeDirectNumber = parseInt(freeTextToSend.trim(), 10);
-        if (!isNaN(freeDirectNumber)) {
-          const freeOptionIndex = freeDirectNumber - 1;
-          
-          // Check for time slot conversion
-          if (availableTimes.length > 0) {
-            const freeTimeSlots = availableTimes.map(time => 
-              typeof time === 'object' && time.formatted ? time.formatted : time
-            );
-            
-            if (freeDirectNumber > 0 && freeDirectNumber <= freeTimeSlots.length) {
-              freeDisplayText = freeTimeSlots[freeDirectNumber - 1];
-              console.log(`✅ [Free-Time] ${freeTextToSend} → "${freeDisplayText}"`);
-            }
-          }
-          
-          // Check for date conversion
-          if (availableDates.length > 0) {
-            const freeDateOptions = availableDates.map(date => date.display);
-            
-            if (freeDirectNumber > 0 && freeDirectNumber <= freeDateOptions.length) {
-              freeDisplayText = freeDateOptions[freeDirectNumber - 1];
-              console.log(`✅ [Free-Date] ${freeTextToSend} → "${freeDisplayText}"`);
-            }
-          }
-        }
-      }
-      
-      // Use the converted display text
-      const displayUserMessage = { ...userMessage, content: freeDisplayText };
-      console.log(`📝 [Free-Final] Input: "${freeTextToSend}" → Display: "${freeDisplayText}"`);
-      
-      const updatedMessages = [...messages, displayUserMessage];
+      const updatedMessages = [...messages, userMessage];
       
       setMessages(updatedMessages);
       setInput('');

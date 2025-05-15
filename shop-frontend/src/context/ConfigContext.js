@@ -50,8 +50,15 @@ const defaultConfig = {
     whatsappIntegration: {
       enabled: false,
       phoneNumber: '',
-      provider: 'twilio',
+      provider: 'evolution-api',
       apiKey: '',
+      filterMode: 'whitelist',
+      filterNumbers: [],
+      disableGroups: true,
+      adIntegration: {
+        enabled: false,
+        campaignId: ''
+      }
     },
     templates: {
       birthdayMessage: {
@@ -159,13 +166,18 @@ Você é a AMANDA, Assistente Multifuncional Avançada para Navegação e Defini
       plural: 'Profissionais',
     }
   ],
-  services: [
-    {
-      label: 'Serviços',
+  services: {
+    label: {
       singular: 'Serviço',
-      plural: 'Serviços',
-    }
-  ],
+      plural: 'Serviços'
+    },
+    items: [
+      { id: '1', name: 'Corte de Cabelo', duration: 40, price: 50 },
+      { id: '2', name: 'Barba', duration: 30, price: 35 },
+      { id: '3', name: 'Corte e Barba', duration: 60, price: 80 }
+    ],
+    maxItems: 10 // Limit for free/individual accounts
+  },
   clients: [
     {
       label: 'Clientes',

@@ -8,6 +8,7 @@ import {
   IconButton,
   Toolbar,
   Typography,
+  CssBaseline,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 
@@ -19,6 +20,7 @@ import interactionPlugin   from '@fullcalendar/interaction';
 import FloatingChat        from '../components/chat/FloatingChat';
 import ChatToggleButton    from '../components/chat/ChatToggleButton';
 import AppointmentDialog   from '../components/appointment/AppointmentDialog';
+import Footer              from '../components/common/Footer';
 
 import { useConfig }       from '../context/ConfigContext';
 import { useNotification } from '../components/ui/NotificationContext';
@@ -151,6 +153,8 @@ export default function TestEnvironment({ open, onClose, isEnterpriseAccount }) 
 
   return (
     <Dialog fullScreen open={open} onClose={onClose}>
+      <CssBaseline />
+      
       {/* App bar */}
       <AppBar sx={{ position: 'relative' }}>
         <Toolbar>
@@ -163,56 +167,71 @@ export default function TestEnvironment({ open, onClose, isEnterpriseAccount }) 
         </Toolbar>
       </AppBar>
 
-      {/* Body */}
-      <Box sx={{ position:'relative', height:'calc(100vh - 64px)' }}>
-        {busy ? (
-          /* little spinner */
-          <Box sx={{
-            height:'100%', display:'flex', alignItems:'center', justifyContent:'center'
-          }}>
+      {/* Content wrapper with flex column layout */}
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        height: 'calc(100vh - 64px)',
+        overflow: 'hidden'
+      }}>
+        {/* Main content area with flex-grow */}
+        <Box sx={{ 
+          position: 'relative', 
+          flex: '1 1 auto',
+          overflow: 'auto'
+        }}>
+          {busy ? (
+            /* little spinner */
             <Box sx={{
-              width:40, height:40, borderRadius:'50%',
-              border:'3px solid', borderColor: config.theme.primaryColor,
-              borderTopColor:'transparent',
-              animation:'spin 1s linear infinite',
-              '@keyframes spin': { '100%':{ transform:'rotate(360deg)' } }
-            }}/>
-          </Box>
-        ) : (
-          <FullCalendar
-            plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]}
-            initialView="dayGridMonth"
-            height="100%"
-            headerToolbar={{
-              left:'prev,next today',
-              center:'title',
-              right:'dayGridMonth,timeGridWeek,timeGridDay',
-            }}
-            events={calendarEvents}
-            slotMinTime="07:00:00"
-            slotMaxTime="19:00:00"
-            dateClick={(info)=>{ setSelectedDate(info.dateStr); setDialogOpen(true);} }
-            eventContent={renderEventContent}
-            buttonText={{ today:'Hoje', month:'Mês', week:'Semana', day:'Dia' }}
-          />
-        )}
+              height:'100%', display:'flex', alignItems:'center', justifyContent:'center'
+            }}>
+              <Box sx={{
+                width:40, height:40, borderRadius:'50%',
+                border:'3px solid', borderColor: config.theme.primaryColor,
+                borderTopColor:'transparent',
+                animation:'spin 1s linear infinite',
+                '@keyframes spin': { '100%':{ transform:'rotate(360deg)' } }
+              }}/>
+            </Box>
+          ) : (
+            <FullCalendar
+              plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]}
+              initialView="dayGridMonth"
+              height="100%"
+              headerToolbar={{
+                left:'prev,next today',
+                center:'title',
+                right:'dayGridMonth,timeGridWeek,timeGridDay',
+              }}
+              events={calendarEvents}
+              slotMinTime="07:00:00"
+              slotMaxTime="19:00:00"
+              dateClick={(info)=>{ setSelectedDate(info.dateStr); setDialogOpen(true);} }
+              eventContent={renderEventContent}
+              buttonText={{ today:'Hoje', month:'Mês', week:'Semana', day:'Dia' }}
+            />
+          )}
 
-        {/* chat & dialogs */}
-        <ChatToggleButton onClick={()=>setIsChatOpen(p=>!p)}/>
-        <FloatingChat
-          open={isChatOpen}
-          onClose={()=>setIsChatOpen(false)}
-          onNewAppointment={handleNewAppointment}
-          workers={workers}
-          isEnterpriseAccount={isEnterpriseAccount}
-        />
-        <AppointmentDialog
-          open={dialogOpen}
-          onClose={()=>setDialogOpen(false)}
-          dateTime={selectedDate}
-          refreshAppointments={loadAppointments}
-          workers={workers}
-        />
+          {/* chat & dialogs */}
+          <ChatToggleButton onClick={()=>setIsChatOpen(p=>!p)}/>
+          <FloatingChat
+            open={isChatOpen}
+            onClose={()=>setIsChatOpen(false)}
+            onNewAppointment={handleNewAppointment}
+            workers={workers}
+            isEnterpriseAccount={isEnterpriseAccount}
+          />
+          <AppointmentDialog
+            open={dialogOpen}
+            onClose={()=>setDialogOpen(false)}
+            dateTime={selectedDate}
+            refreshAppointments={loadAppointments}
+            workers={workers}
+          />
+        </Box>
+        
+        {/* Footer */}
+        <Footer />
       </Box>
     </Dialog>
   );

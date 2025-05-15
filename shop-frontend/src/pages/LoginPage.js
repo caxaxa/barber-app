@@ -94,48 +94,78 @@ export default function LoginPage() {
   };
 
   return (
-    <Container
-      maxWidth="sm"
-      sx={{ height: '100vh', display: 'flex', alignItems: 'center' }}
-    >
-      <Paper elevation={3} sx={{ width: '100%', p: 4, borderRadius: 2 }}>
-        <Stack spacing={3}>
-          <Card sx={{ mb: 3, overflow: 'hidden', borderRadius: 2 }}>
-            <CardMedia
-              component="img"
-              height="140"
-              image="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1740"
-              alt="WhatsApp Business Assistant"
-            />
-          </Card>
+    <Box className="background-customizable" sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Container maxWidth="sm">
+        <Paper elevation={3} sx={{ width: '100%', p: 4, borderRadius: 2 }}>
+          <Stack spacing={3}>
+            <Box className="banner-customizable" sx={{ textAlign: 'center', borderRadius: 2, overflow: 'hidden', mb: 2, pt: 3, pb: 3 }}>
+              <Box
+                component="img"
+                src="/images/logo.png"
+                alt="Aisol Logo"
+                sx={{
+                  height: '80px',
+                  margin: '20px auto',
+                  filter: 'brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%)' // Green tint
+                }}
+                className="logo-customizable"
+              />
+            </Box>
 
-          <Typography variant="h4" align="center" fontWeight="bold">
-            WhatsApp Business Assistant
-          </Typography>
-
-          <Typography variant="body1" align="center" color="text.secondary">
-            Clique abaixo para entrar via Amazon Cognito.
-          </Typography>
-
-          {error && <Alert severity="error">{error}</Alert>}
-
-          <Button
-            onClick={handleHostedUi}
-            variant="contained"
-            size="large"
-            fullWidth
-            sx={{ mt: 2 }}
-          >
-            Entrar
-          </Button>
-
-          <Box sx={{ mt: 2, textAlign: 'center' }}>
-            <Typography variant="caption" color="text.secondary">
-              Não tem conta? Use a Hosted-UI do Cognito para se cadastrar.
+            <Typography variant="h4" align="center" fontWeight="bold">
+              WhatsApp Business Assistant
             </Typography>
-          </Box>
-        </Stack>
-      </Paper>
-    </Container>
+
+            <Typography variant="body1" align="center" color="text.secondary" className="textDescription-customizable">
+              Clique abaixo para entrar via Amazon Cognito.
+            </Typography>
+
+            {error && <Alert severity="error" className="errorMessage-customizable">{error}</Alert>}
+
+            <Button
+              onClick={handleHostedUi}
+              variant="contained"
+              size="large"
+              fullWidth
+              className="submitButton-customizable"
+              sx={{ mt: 2 }}
+            >
+              Entrar
+            </Button>
+
+            <Box sx={{ mt: 2, textAlign: 'center' }} className="redirect-customizable">
+              <Typography variant="caption" color="text.secondary" className="legalText-customizable">
+                Não tem conta? Use a Hosted-UI do Cognito para se cadastrar.
+              </Typography>
+            </Box>
+          </Stack>
+        </Paper>
+        
+        {/* Footer */}
+        <Box 
+          sx={{ 
+            mt: 4, 
+            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 1
+          }}
+        >
+          <Box
+            component="img"
+            src="/images/logo.png"
+            alt="Aisol Logo"
+            sx={{
+              height: '24px',
+              filter: 'brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%)' // Green tint
+            }}
+          />
+          <Typography variant="body2" className="legalText-customizable">
+            Powered by Aisol© 2025
+          </Typography>
+        </Box>
+      </Container>
+    </Box>
   );
 }

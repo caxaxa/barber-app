@@ -1,0 +1,38 @@
+[
+  {
+    "content": "Implement dynamic service fetching from configuration",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Add logic to skip service selection when no services are configured",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Implement custom 30-minute 'Consulta' appointments as fallback",
+    "status": "completed",
+    "priority": "medium",
+    "id": "3"
+  },
+  {
+    "content": "Update confirmation messages to properly handle custom appointments",
+    "status": "completed",
+    "priority": "medium",
+    "id": "4"
+  },
+  {
+    "content": "Ensure appointment JSON includes correct duration and service information",
+    "status": "completed",
+    "priority": "high",
+    "id": "5"
+  },
+  {
+    "content": "Update success message to display service details when available",
+    "status": "completed",
+    "priority": "low",
+    "id": "6"
+  }
+]
