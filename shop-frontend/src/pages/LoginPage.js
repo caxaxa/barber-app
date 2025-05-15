@@ -1,170 +1,46 @@
 // src/pages/LoginPage.js
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   Box,
   Paper,
   Typography,
-  Button,
   Container,
-  Alert,
-  Card,
-  CardMedia,
-  Stack,
 } from '@mui/material';
-import {jwtDecode} from 'jwt-decode';
-import { useConfig } from '../context/ConfigContext';
+import { useAuth } from '../hooks/useAuth';
 import AdminPage from './AdminPage';
+import { LoginContainer } from '../components/auth/LoginContainer';
+import { loginStyles } from '../styles/loginStyles';
+import '../styles/LoginPage.css';
 
 export default function LoginPage() {
-  const [error, setError]           = useState('');
-  const [ready, setReady]           = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const { setUserRole }             = useConfig();
+  const { error, ready, isLoggedIn, handleHostedUi } = useAuth();
 
-  const COGNITO_DOMAIN = process.env.REACT_APP_COGNITO_DOMAIN;
-  const COGNITO_CLIENT = process.env.REACT_APP_COGNITO_CLIENT_ID;
-  const REDIRECT_URI   = process.env.REACT_APP_REDIRECT_URI;
-  const SCOPES         = 'openid email phone';
-
-  // Called once we have a valid id_token
-  const finishLogin = idToken => {
-    try {
-      const payload     = jwtDecode(idToken);
-      const accountType = payload['custom:accountType'] || 'individual';
-      const username    = payload['cognito:username'];
-
-      sessionStorage.setItem('idToken',  idToken);
-      sessionStorage.setItem('shopId',    username);
-      sessionStorage.setItem('userRole',  accountType);
-
-      setUserRole(accountType);
-      setIsLoggedIn(true);
-      setReady(true);
-    } catch (e) {
-      setError('Falha ao processar token: ' + e.message);
-      setReady(true);
-    }
-  };
-
-  // On mount: check for stored token or #id_token in hash
-  useEffect(() => {
-    // 1) Already logged in?
-    const stored = sessionStorage.getItem('idToken');
-    if (stored) {
-      finishLogin(stored);
-      return;
-    }
-
-    // 2) Look for id_token in URL hash
-    const hash = window.location.hash;
-    if (hash.includes('id_token=')) {
-      const idToken = new URLSearchParams(hash.slice(1)).get('id_token');
-      if (idToken) {
-        // remove the hash
-        window.history.replaceState({}, document.title, window.location.pathname);
-        finishLogin(idToken);
-        return;
-      } else {
-        setError('Nenhum id_token encontrado na resposta.');
-      }
-    }
-
-    // 3) Not logged in yet — show login button
-    setReady(true);
-  }, [setUserRole]);
-
-  // If we have a token and are “ready,” show the app
+  // If we have a token and are "ready," show the app
   if (ready && isLoggedIn) {
     return <AdminPage />;
   }
 
-  // Otherwise, show the Entrar button for implicit flow
-  const handleHostedUi = () => {
-    const params = new URLSearchParams({
-      response_type: 'token',
-      client_id:     COGNITO_CLIENT,
-      redirect_uri:  REDIRECT_URI,
-      scope:         SCOPES,
-      screen_hint:   'signup',  // optional: jump straight to the sign-up form
-      lang:          'pt-BR',   // Portuguese localization
-    });
-    window.location.assign(
-      `${COGNITO_DOMAIN}/oauth2/authorize?${params.toString()}`
-    );
-  };
-
   return (
-    <Box className="background-customizable" sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Container maxWidth="sm">
-        <Paper elevation={3} sx={{ width: '100%', p: 4, borderRadius: 2 }}>
-          <Stack spacing={3}>
-            <Box className="banner-customizable" sx={{ textAlign: 'center', borderRadius: 2, overflow: 'hidden', mb: 2, pt: 3, pb: 3 }}>
-              <Box
-                component="img"
-                src="/images/logo.png"
-                alt="Aisol Logo"
-                sx={{
-                  height: '80px',
-                  margin: '20px auto',
-                  filter: 'brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%)' // Green tint
-                }}
-                className="logo-customizable"
-              />
-            </Box>
-
-            <Typography variant="h4" align="center" fontWeight="bold">
-              WhatsApp Business Assistant
-            </Typography>
-
-            <Typography variant="body1" align="center" color="text.secondary" className="textDescription-customizable">
-              Clique abaixo para entrar via Amazon Cognito.
-            </Typography>
-
-            {error && <Alert severity="error" className="errorMessage-customizable">{error}</Alert>}
-
-            <Button
-              onClick={handleHostedUi}
-              variant="contained"
-              size="large"
-              fullWidth
-              className="submitButton-customizable"
-              sx={{ mt: 2 }}
+    <Box sx={loginStyles.background}>
+      <Container sx={loginStyles.container}>
+        <Paper elevation={5} sx={loginStyles.card}>
+          {/* Header */}
+          <Box sx={loginStyles.header}>
+            <Typography 
+              variant="h5" 
+              sx={loginStyles.title}
             >
-              Entrar
-            </Button>
+              Agendamentos Online
+            </Typography>
+          </Box>
 
-            <Box sx={{ mt: 2, textAlign: 'center' }} className="redirect-customizable">
-              <Typography variant="caption" color="text.secondary" className="legalText-customizable">
-                Não tem conta? Use a Hosted-UI do Cognito para se cadastrar.
-              </Typography>
-            </Box>
-          </Stack>
+          <Box sx={loginStyles.body}>
+            <LoginContainer 
+              error={error}
+              handleHostedUi={handleHostedUi}
+            />
+          </Box>
         </Paper>
-        
-        {/* Footer */}
-        <Box 
-          sx={{ 
-            mt: 4, 
-            textAlign: 'center',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 1
-          }}
-        >
-          <Box
-            component="img"
-            src="/images/logo.png"
-            alt="Aisol Logo"
-            sx={{
-              height: '24px',
-              filter: 'brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%)' // Green tint
-            }}
-          />
-          <Typography variant="body2" className="legalText-customizable">
-            Powered by Aisol© 2025
-          </Typography>
-        </Box>
       </Container>
     </Box>
   );

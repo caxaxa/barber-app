@@ -35,31 +35,96 @@ export const handler = async (event) => {
     const publicApiHeaders = { 'x-api-key': PUBLIC_KEY };
     const evolutionApiHeaders = { 'apiKey': EVO_KEY };
     
+    // Helper function to check if a number should be allowed based on whitelist/blacklist
+    const checkNumberFilter = (number, whatsappConfig) => {
+      // If WhatsApp integration is not enabled or config is missing, allow all
+      if (!whatsappConfig?.enabled) return true;
+      
+      // Check if it's a group message
+      const isGroup = number.includes('@g.us');
+      if (isGroup && whatsappConfig.disableGroups) {
+        console.log(`Blocking message from group chat: ${number}`);
+        return { allowed: false, reason: 'group' };
+      }
+      
+      // Apply number filtering based on whitelist/blacklist
+      const filterMode = whatsappConfig.filterMode || 'whitelist';
+      const filterNumbers = whatsappConfig.filterNumbers || [];
+      
+      // Check if filtering should be applied
+      if (filterNumbers.length > 0) {
+        // Normalize phone number for comparison
+        const normalizedNumber = number.replace(/[^0-9+]/g, '');
+        
+        // Check if the number is in the filter list
+        const isInList = filterNumbers.some(num => {
+          const normalizedFilterNumber = num.replace(/[^0-9+]/g, '');
+          return normalizedNumber.includes(normalizedFilterNumber) || 
+                normalizedFilterNumber.includes(normalizedNumber);
+        });
+        
+        // For whitelist: block if NOT in list
+        // For blacklist: block if IN list
+        const shouldBlock = (filterMode === 'whitelist') ? !isInList : isInList;
+        
+        if (shouldBlock) {
+          console.log(`Blocking message from ${number} based on ${filterMode} configuration`);
+          return { allowed: false, reason: filterMode };
+        }
+      } else if (filterMode === 'whitelist' && filterNumbers.length === 0) {
+        // Empty whitelist means block all (unless it's just not configured)
+        console.log(`Blocking message from ${number} - empty whitelist`);
+        return { allowed: false, reason: 'emptyWhitelist' };
+      }
+      
+      console.log(`Message from ${number} allowed by ${filterMode} filter check`);
+      return { allowed: true };
+    };
+    
+    // Get shop config first to check filtering
+    let shopConfig;
+    try {
+      const configResponse = await axios.get(`${PUBLIC_URL}/public/config`, { 
+        headers: publicApiHeaders, 
+        params: { shop_id: shopId } 
+      });
+      shopConfig = configResponse.data;
+      
+      // Check if this number should be blocked
+      const filterResult = checkNumberFilter(phoneNumber, shopConfig?.messaging?.whatsappIntegration);
+      if (!filterResult.allowed) {
+        return {
+          statusCode: 200,
+          body: JSON.stringify({ 
+            success: true, 
+            blocked: filterResult.reason 
+          })
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching shop config for filtering:', error);
+      // Continue processing if we can't check filters
+    }
+    
     // Get or create user context
     const contextKey = `${shopId}:${phoneNumber}`;
     let context = contextManager.getContext(shopId, phoneNumber);
     
-    // If no context exists, fetch shop and worker data
+    // If no context exists, fetch additional data and create context
     if (!context) {
       try {
-        console.log(`Fetching initial data for shop ${shopId}`);
+        console.log(`Fetching worker data for shop ${shopId}`);
         
-        // Make parallel API calls to get config and workers
-        const [configResponse, workersResponse] = await Promise.all([
-          axios.get(`${PUBLIC_URL}/public/config`, { 
-            headers: publicApiHeaders, 
-            params: { shop_id: shopId } 
-          }),
-          axios.get(`${PUBLIC_URL}/public/workers`, { 
-            headers: publicApiHeaders, 
-            params: { shop_id: shopId } 
-          })
-        ]);
+        // Only fetch workers since we already have config
+        const workersResponse = await axios.get(`${PUBLIC_URL}/public/workers`, { 
+          headers: publicApiHeaders, 
+          params: { shop_id: shopId } 
+        });
         
-        // Build initial FSM context
+        // Build initial FSM context using the config we already fetched
         context = buildContext(
           shopId,
-          configResponse.data,
+          shopConfig, // Use the config we already fetched
           workersResponse.data.workers || []
         );
         

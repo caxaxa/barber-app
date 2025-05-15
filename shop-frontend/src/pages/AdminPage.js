@@ -20,15 +20,16 @@ import {
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { useConfig } from '../context/ConfigContext';
 import BusinessConfig from '../components/admin/config/BusinessConfig';
 import AssistantConfig from '../components/admin/config/AssistantConfig';
-import ThemeConfig from '../components/admin/config/ThemeConfig';
 import TerminologyConfig from '../components/admin/config/TerminologyConfig';
 import MessagesConfig from '../components/admin/config/MessagesConfig';
 import SecurityConfig from '../components/admin/config/SecurityConfig';
 import WhatsAppConfig from '../components/admin/config/WhatsAppConfig';
 import TestEnvironment from './TestEnvironment';
+import SettingsPage from './SettingsPage';
 import Footer from '../components/common/Footer';
 
 export default function AdminPage() {
@@ -37,6 +38,7 @@ export default function AdminPage() {
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [testEnvironmentOpen, setTestEnvironmentOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   
   const userRole = getUserRole();
   const isEnterpriseAccount = userRole === 'enterprise';
@@ -71,8 +73,18 @@ export default function AdminPage() {
 
   // Handle logout
   const handleLogout = () => {
-      signOut();
-    };
+    signOut();
+  };
+  
+  // Handle settings button click
+  const handleOpenSettings = () => {
+    setSettingsOpen(true);
+  };
+  
+  // Handle closing settings page
+  const handleCloseSettings = () => {
+    setSettingsOpen(false);
+  };
 
   return (
     <Box sx={{ 
@@ -110,6 +122,19 @@ export default function AdminPage() {
           
           <IconButton
             color="inherit"
+            onClick={handleOpenSettings}
+            aria-label="settings"
+            sx={{ 
+              mr: 1,
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)' }
+            }}
+          >
+            <SettingsIcon />
+          </IconButton>
+          
+          <IconButton
+            color="inherit"
             onClick={handleLogout}
             aria-label="logout"
             sx={{ 
@@ -139,7 +164,6 @@ export default function AdminPage() {
         >
           <Tab label="Empresa" />
           <Tab label="Assistente" />
-          <Tab label="Tema" />
           <Tab label="Mensagens" />
           {/* WhatsApp integration visible for non-free plans */}
           {userRole !== 'free' && <Tab label="WhatsApp" />}
@@ -172,24 +196,19 @@ export default function AdminPage() {
         <TabPanel value={tabValue} index={1}>
           <AssistantConfig />
         </TabPanel>
-
-        {/* Theme Settings Tab */}
-        <TabPanel value={tabValue} index={2}>
-          <ThemeConfig />
-        </TabPanel>
         
         {/* Messages Tab */}
-        <TabPanel value={tabValue} index={3}>
+        <TabPanel value={tabValue} index={2}>
           <MessagesConfig />
         </TabPanel>
         
         {/* WhatsApp Tab */}
-        <TabPanel value={tabValue} index={4}>
+        <TabPanel value={tabValue} index={3}>
           <WhatsAppConfig />
         </TabPanel>
         
         {/* Security Settings Tab */}
-        <TabPanel value={tabValue} index={5}>
+        <TabPanel value={tabValue} index={4}>
           <SecurityConfig />
         </TabPanel>
       </Container>
@@ -232,6 +251,23 @@ export default function AdminPage() {
           onClose={handleCloseTestEnvironment}
           isEnterpriseAccount={isEnterpriseAccount}
         />
+      )}
+      
+      {/* Settings Page Dialog */}
+      {settingsOpen && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 1300,
+            bgcolor: 'background.paper'
+          }}
+        >
+          <SettingsPage onBack={handleCloseSettings} />
+        </Box>
       )}
     </Box>
   );

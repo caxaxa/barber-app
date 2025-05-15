@@ -1,0 +1,302 @@
+/* LoginPage.css - Calendar-themed login page styles */
+
+.login-page-background {
+  background: linear-gradient(135deg, #1976d2 0%, #64b5f6 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-page-background::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.login-container {
+  width: 100%;
+  max-width: 480px;
+  padding: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.login-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  z-index: 10;
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.login-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+}
+
+.login-header {
+  background: linear-gradient(135deg, #1976d2 0%, #2196f3 100%);
+  padding: 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.login-header::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.08' fill-rule='evenodd'%3E%3Ccircle cx='3' cy='3' r='3'/%3E%3Ccircle cx='13' cy='13' r='3'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.login-title {
+  color: white;
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.6rem;
+  position: relative;
+  z-index: 1;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Animation for the calendar icon */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.logo-container {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.logo-customizable {
+  filter: brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%);
+  height: 80px;
+  transition: transform 0.3s ease;
+}
+
+.logo-customizable:hover {
+  transform: scale(1.05);
+}
+
+.login-body {
+  padding: 30px;
+}
+
+.calendar-icon-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.calendar-preview {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 30px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.calendar-preview::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, rgba(25, 118, 210, 0.1) 0%, rgba(255, 255, 255, 0) 100%);
+  border-radius: 0 0 0 100%;
+}
+
+.calendar-month {
+  text-align: center;
+  font-weight: 700;
+  color: #1976d2;
+  margin-bottom: 15px;
+  font-size: 1.25rem;
+  text-transform: capitalize;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid rgba(25, 118, 210, 0.1);
+  padding-bottom: 10px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.calendar-day-header {
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  padding: 8px 0;
+  text-transform: uppercase;
+}
+
+.calendar-day {
+  aspect-ratio: 1/1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  border-radius: 50%;
+  color: #333;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.calendar-day:not(:empty):hover {
+  background-color: rgba(25, 118, 210, 0.05);
+  transform: scale(1.05);
+  border: 1px solid rgba(25, 118, 210, 0.2);
+}
+
+.calendar-day.today {
+  background-color: #1976d2;
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.4);
+}
+
+.calendar-day.available {
+  background-color: rgba(0, 168, 107, 0.1);
+  color: #00a86b;
+  font-weight: 600;
+  position: relative;
+  border: 1px solid rgba(0, 168, 107, 0.2);
+}
+
+.calendar-day.available::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  background-color: #00a86b;
+  border-radius: 50%;
+}
+
+.textDescription-customizable {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #555;
+  font-size: 1rem;
+}
+
+.submitButton-customizable {
+  background-color: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 24px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+}
+
+.submitButton-customizable::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 70%);
+  transform: translateX(-100%);
+  transition: all 0.6s ease;
+}
+
+.submitButton-customizable:hover {
+  background-color: #0d5ba9;
+  box-shadow: 0 8px 20px rgba(13, 91, 169, 0.5);
+  transform: translateY(-3px);
+}
+
+.submitButton-customizable:hover::before {
+  transform: translateX(100%);
+}
+
+.submitButton-customizable:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(13, 91, 169, 0.5);
+}
+
+.login-footer {
+  text-align: center;
+  margin-top: 15px;
+}
+
+.legalText-customizable {
+  color: #747474;
+  font-size: 0.8rem;
+}
+
+.errorMessage-customizable {
+  background-color: #ffebee;
+  color: #d32f2f;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+  border-left: 4px solid #d32f2f;
+}
+
+@media (max-width: 600px) {
+  .login-container {
+    max-width: 90%;
+  }
+  
+  .login-body {
+    padding: 20px;
+  }
+}
