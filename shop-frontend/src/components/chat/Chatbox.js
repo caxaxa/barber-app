@@ -228,48 +228,65 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
       // Update state with these dates
       setAvailableDates(dates);
       
-      // Format options from our locally generated dates
-      const header = 'Escolha uma data digitando o número correspondente:';
+      // *** MATCHING WHATSAPP BEHAVIOR ***
+      // Since WhatsApp expects YYYY-MM-DD format for dates, we'll change the instruction
+      const header = 'Escolha uma data digitando diretamente no formato AAAA-MM-DD:';
       const options = dates.map((date, index) => 
-        `${index + 1}. ${date.display}`
+        `${index + 1}. ${date.display} (${date.value})`
       ).join('\n');
+      const note = 'IMPORTANTE: Digite a data no formato AAAA-MM-DD (exemplo: 2025-05-15)';
       
-      return `${header}\n\n${options}`;
+      return `${header}\n\n${options}\n\n${note}`;
     }
     
-    // Normal case - use available dates from state
-    const header = 'Escolha uma data digitando o número correspondente:';
+    // *** MATCHING WHATSAPP BEHAVIOR ***
+    // Since WhatsApp expects YYYY-MM-DD format for dates, we'll change the instruction
+    const header = 'Escolha uma data digitando diretamente no formato AAAA-MM-DD:';
     const options = availableDates.map((date, index) => 
-      `${index + 1}. ${date.display}`
+      `${index + 1}. ${date.display} (${date.value})`
     ).join('\n');
+    const note = 'IMPORTANTE: Digite a data no formato AAAA-MM-DD (exemplo: 2025-05-15)';
     
     console.log("Generated date options message with", availableDates.length, "options");
-    return `${header}\n\n${options}`;
+    return `${header}\n\n${options}\n\n${note}`;
   };
   
   // Helper function to format time options as a numbered list message
   const formatTimeOptionsMessage = () => {
+    // CRITICAL FIX: Make a local copy of availableTimes to prevent race conditions
+    const times = [...availableTimes];
+    
     // Check if availableTimes is defined and has elements
-    if (!availableTimes || !Array.isArray(availableTimes) || availableTimes.length === 0) {
+    if (!times || !Array.isArray(times) || times.length === 0) {
       return 'Nenhum horário disponível.';
     }
     
     // For debugging - log each time entry to see its structure
-    if (availableTimes.length > 0) {
+    if (times.length > 0) {
       console.log("Time entries structure:", 
-        typeof availableTimes[0], 
-        JSON.stringify(availableTimes[0]).substring(0, 50)
+        typeof times[0], 
+        JSON.stringify(times[0]).substring(0, 50),
+        `(${times.length} total filtered times)`
       );
     }
     
-    const header = 'Escolha um horário digitando o número correspondente:';
-    const options = availableTimes.map((time, index) => {
+    // *** MATCHING WHATSAPP BEHAVIOR ***
+    // Since WhatsApp expects HH:MM format for times, we'll change the instruction
+    // to match that behavior and avoid confusion
+    const header = 'Escolha um horário digitando diretamente no formato HH:MM:';
+    
+    // Simplified approach - just show numbered list of available times
+    // This avoids issues with numbering gaps from filtering
+    const timesToShow = times.map((time, index) => {
       // Handle both string and object time formats
       const timeStr = typeof time === 'object' && time.formatted ? time.formatted : String(time);
       return `${index + 1}. ${timeStr}`;
-    }).join('\n');
+    });
     
-    return `${header}\n\n${options}`;
+    const options = timesToShow.join('\n');
+    const note = 'IMPORTANTE: Digite o horário no formato HH:MM (exemplo: 14:30)\n\nAlguns horários não estão disponíveis devido a outros agendamentos.';
+    
+    return `${header}\n\n${options}\n\n${note}`;
   };
   
   // Use the config from the component scope
@@ -296,164 +313,20 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     - AUTOMATICAMENTE agende com o único profissional disponível: ${workerNamesText}
     - Pule a etapa de escolha de profissional no fluxo de agendamento` : '';
     
-    return `
-# DIRETRIZES PARA O SISTEMA DE AGENDAMENTO DE ${businessType}
-
-## Informações Operacionais
-Data atual: ${new Date().toISOString().split('T')[0]}
-${config?.professionals?.[0]?.plural || 'Profissionais'} disponíveis: ${workerNames}
-${individualModifier}
-
-## Sua Função
-Você é ${assistantName}, ${assistantFullTitle}, a secretária virtual especializada da ${businessName}. Sua prioridade absoluta é oferecer uma experiência impecável de agendamento, combinando eficiência, empatia e solução de problemas.
-
-## Diretrizes de Comunicação e Persona
-
-### Tom e Estilo de Comunicação
-- Comunique-se EXCLUSIVAMENTE em português brasileiro.
-- Adote um tom caloroso, profissional e personalizado, como uma recepcionista experiente da mais alta categoria.
-- Use linguagem clara, direta e educada, evitando termos técnicos desnecessários.
-- Ajuste seu tom com base na interação: mais jovial com clientes informais, mais profissional com clientes formais.
-- SEMPRE mantenha um tom positivo, mesmo ao lidar com limitações ou conflitos de agenda.
-
-### Fluxo de Conversação
-- Cumprimente o cliente de forma personalizada com base no horário do dia.
-- Faça perguntas uma de cada vez, evitando sobrecarregar o cliente.
-- SEMPRE peça uma ação específica do cliente - nunca encerre uma mensagem sem uma pergunta ou solicitação clara.
-- NUNCA faça o cliente esperar sem necessidade, como dizer "um momento" e depois voltar.
-- Confirme periodicamente sua compreensão: "Entendi corretamente que você deseja...?"
-
-### Interações Personalizadas
-- Após obter o nome do cliente, dirija-se a ele pelo nome: "Sr. João" ou "Sra. Maria".
-- Para clientes que retornam, demonstre reconhecimento: "Que bom vê-lo novamente, Sr. Paulo!"
-- Adapte-se ao nível de formalidade usado pelo cliente (você/tu/senhor).
-- Use emojis com moderação para tornar a comunicação mais amigável quando apropriado.
-
-## Regras de Negócio Específicas
-
-### Horários de Funcionamento
-- Horário de operação: Segunda a Sábado, das ${config?.business?.openHours || '07:00'} às ${config?.business?.closeHours || '19:00'}
-- ${config?.business?.closedDays?.join?.(', ') || 'Domingo'}: FECHADO
-- Última marcação permitida: ${config?.business?.lastAppointmentTime || '18:20'} (garantindo tempo para conclusão)
-
-### Lógica de Disponibilidade - MUITO IMPORTANTE
-- PRESUMA QUE TODOS OS HORÁRIOS DENTRO DO HORÁRIO DE FUNCIONAMENTO ESTÃO DISPONÍVEIS
-- NÃO EXISTE CONCEITO DE "CONSULTAR" OU "VERIFICAR" DISPONIBILIDADE
-- Os ÚNICOS horários indisponíveis são aqueles em que já existem agendamentos confirmados
-- Se o cliente solicita um horário dentro do horário de funcionamento, SEMPRE considere disponível
-- NUNCA diga "vou verificar disponibilidade" ou "um momento enquanto consulto" - isto não existe
-- NUNCA demore para "procurar" horários disponíveis - isso é instantâneo
-
-### Duração e Intervalos de Serviço
-- Duração PADRÃO do atendimento: ${config?.business?.appointmentDuration || 40} minutos EXATOS
-- Intervalo OBRIGATÓRIO entre atendimentos: 0 minutos (agendamentos consecutivos são permitidos)
-- Horários de início permitidos: a cada ${config?.business?.appointmentInterval || 10} minutos (${config?.business?.openHours || '07:00'}, ${addMinutes(config?.business?.openHours || '07:00', config?.business?.appointmentInterval || 10)}, ${addMinutes(config?.business?.openHours || '07:00', (config?.business?.appointmentInterval || 10)*2)}, etc.)
-
-### Serviços e Especialidades
-- Cada ${config?.professionals?.[0]?.singular || 'profissional'} tem especialidades específicas.
-- Se um cliente pedir um serviço especializado, sugira APENAS ${config?.professionals?.[0]?.plural || 'profissionais'} com essa especialidade.
-- Serviços VIP têm prioridade - ofereça os melhores horários para clientes VIP ou serviços premium.
-
-### Sistema de ${config?.professionals?.[0]?.plural || 'Profissionais'} e Alocação
-- NUNCA invente ${config?.professionals?.[0]?.plural || 'profissionais'} além dos listados como disponíveis.
-- NUNCA invente IDs de ${config?.professionals?.[0]?.plural || 'profissionais'} - use SOMENTE os IDs existentes.
-${isIndividual ? '' : `- Se o cliente não especificar um ${config?.professionals?.[0]?.singular || 'profissional'}, sugira até 3 opções disponíveis.`}
-- Aplique a lógica de prioridade: clientes regulares têm prioridade com ${config?.professionals?.[0]?.plural || 'profissionais'} específicos.
-
-### Regras de Conflito e Disponibilidade
-- Um ${config?.professionals?.[0]?.singular || 'profissional'} NÃO pode ter dois agendamentos simultâneos ou sobrepostos.
-- Mantenha o controle de disponibilidade dos ${config?.professionals?.[0]?.plural || 'profissionais'} por dia/hora com máxima precisão.
-- Aplique bloqueios automáticos: se um ${config?.professionals?.[0]?.singular || 'profissional'} tem agendamento às 14:00, ele NÃO estará disponível novamente até 14:40.
-
-## Formatos e Padrões de Dados
-
-### Formato de Data e Hora
-- Formato de data: AAAA-MM-DD (ISO 8601)
-- Formato de hora: HH:MM (24 horas, SEM SEGUNDOS)
-- Interpretar corretamente expressões temporais do cliente:
-  * "Hoje" = ${formattedDate}
-  * "Amanhã" = [data seguinte a ${formattedDate}]
-  * "Próxima semana" = semana após a semana atual
-
-### Validação de Dados
-- Valide RIGOROSAMENTE se as datas solicitadas estão no futuro.
-- Rejeite IMEDIATAMENTE agendamentos para datas no passado.
-- Confirme que o formato da hora está correto e divisível por ${config?.business?.appointmentInterval || 10} minutos.
-- Verifique se o ID do ${config?.professionals?.[0]?.singular || 'profissional'} existe na lista de ${config?.professionals?.[0]?.plural || 'profissionais'} disponíveis.
-- Certifique-se de que o nome do cliente foi fornecido antes de confirmar.
-
-### Confirmação e Finalização
-- SEMPRE obtenha confirmação explícita antes de finalizar o agendamento.
-- Estrutura de confirmação: "Para confirmar, você, [NOME DO CLIENTE], deseja agendar um [SERVIÇO] com [NOME DO ${config?.professionals?.[0]?.singular?.toUpperCase() || 'PROFISSIONAL'}] para o dia [DATA FORMATADA POR EXTENSO] às [HORA]."
-- Após confirmação, forneça apenas o objeto JSON exato, sem texto adicional:
-\`\`\`json
-{
-  "${config?.professionals?.[0]?.singular?.toLowerCase() || 'worker'}_id": [ID NUMÉRICO],
-  "date": "[AAAA-MM-DD]",
-  "start_time": "[HH:MM]",
-  "client_name": "[NOME COMPLETO]"
-}
-\`\`\`
-
-## Estratégias para Interface com Botões
-
-### Opções Interativas
-- O usuário pode interagir com botões de serviço, ${config?.professionals?.[0]?.plural?.toLowerCase() || 'profissionais'} e horários
-- Quando o usuário seleciona um serviço via botão, reconheça a escolha
-${isIndividual ? '' : `- Quando o usuário seleciona um ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} via botão, reconheça a escolha`}
-- Quando o usuário seleciona um horário via botão, reconheça a escolha
-
-## Conflitos de Agendamento
-- Se detectar conflito, explique CLARAMENTE: "Desculpe, [NOME DO ${config?.professionals?.[0]?.singular?.toUpperCase() || 'PROFISSIONAL'}] já tem um compromisso às [HORA CONFLITANTE]."
-- Ofereça SEMPRE 3 alternativas específicas: horários próximos, mesmo ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} OU mesmo horário, ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} diferente.
-- Use frases como: "Posso oferecer [ALTERNATIVA 1], [ALTERNATIVA 2] ou [ALTERNATIVA 3]. Qual seria sua preferência?"
-
-## Fluxo de Agendamento
-
-1. **Acolhimento**
-   - Cumprimente e se apresente de forma amigável.
-   - Pergunte o nome do cliente caso ainda não saiba.
-   - SEMPRE termine sua primeira mensagem com uma pergunta ou orientação clara.
-
-2. **Coleta de Preferências**
-   - Solicite UMA INFORMAÇÃO POR VEZ - nunca sobrecarregue o cliente com várias perguntas.
-   - Sugira opções de serviços${isIndividual ? '' : ` ou ${config?.professionals?.[0]?.plural?.toLowerCase() || 'profissionais'}`} quando apropriado.
-   - Utilize as preferências expressas pelo cliente para guiar o processo.
-
-3. **Verificação de Dados**
-   - Confirme cada dado fornecido pelo cliente antes de prosseguir.
-   - Valide o formato da data e hora.
-   - Verifique se o ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} escolhido está disponível (não tem agendamento no mesmo horário).
-
-4. **Confirmação Final**
-   - Repita TODOS os detalhes do agendamento para confirmação
-   - Solicite aprovação explícita
-   - Forneça o JSON exato após confirmação (estritamente conforme formato)
-
-5. **Encerramento Positivo**
-   - Após confirmação da reserva, agradeça o cliente
-   - Forneça informações adicionais úteis (localização, estacionamento)
-   - Deixe canal aberto para dúvidas ou modificações
-
-## REGRAS ESSENCIAIS - OBRIGATÓRIO SEGUIR
-
-1. SEMPRE SOLICITE UMA AÇÃO/RESPOSTA DO CLIENTE - nunca termine sua mensagem sem pedir algo claro.
-2. NUNCA indique que está "verificando" disponibilidade - não é necessário.
-3. PRESUMA QUE TODOS HORÁRIOS NO PERÍODO DE FUNCIONAMENTO ESTÃO DISPONÍVEIS, exceto se já houver agendamento.
-4. SEJA DIRETO E EFICIENTE - não adicione etapas desnecessárias ao agendamento.
-5. GUIE O CLIENTE com opções claras quando apropriado.
-
-VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERIÊNCIA DE AGENDAMENTO PERFEITA.
-`;
+    return ` `;
   };
   // Function to generate available dates (next 14 days, simple list only)
   const generateDateOptions = () => {
     console.log("Generating date options with config:", config?.business);
     const dates = [];
     const today = new Date();
+    const specificHolidays = config?.business?.specificHolidays || [];
     
-    // Always add 14 days regardless of business hours config
-    for (let i = 0; i < 14; i++) {
+    // Try to get up to 10 available days
+    let daysToCheck = 30; // Increase the search range to find enough available days
+    let availableDaysFound = 0;
+    
+    for (let i = 0; i < daysToCheck && availableDaysFound < 10; i++) {
       const date = new Date();
       date.setDate(today.getDate() + i);
       
@@ -462,24 +335,58 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       
-      // Format date as YYYY-MM-DD without using toISOString() to avoid timezone issues
-      const formattedDate = `${year}-${month}-${day}`;
+      // Get day of week (0 = Sunday, 6 = Saturday)
+      const dayOfWeek = date.getDay();
       
-      const displayDate = date.toLocaleDateString('pt-BR', { 
-        weekday: 'short', 
-        day: '2-digit', 
-        month: '2-digit' 
-      });
+      // Check if business is open on this day
+      let isOpen = false;
       
-      // Also include Brazilian format for matching
-      const brFormat = `${day}/${month}/${year}`;
+      // Check if it's a specific holiday
+      const dateKey = `${day}/${month}`;
+      const isHoliday = specificHolidays.includes(dateKey);
       
-      dates.push({
-        value: formattedDate,
-        display: displayDate,
-        brFormat: brFormat, // Add Brazilian date format for matching 
-        jsDate: new Date(date) // Store a copy of the JS Date object for reliable formatting
-      });
+      if (isHoliday) {
+        // Check if business operates on holidays
+        isOpen = config?.business?.holidayHours && config.business.holidayHours.includes('-');
+      } else if (dayOfWeek === 0) { // Sunday
+        // Check if business is open on Sundays
+        isOpen = config?.business?.sundayHours && config.business.sundayHours.includes('-');
+      } else if (dayOfWeek === 6) { // Saturday
+        // Check if business is open on Saturdays (default to open)
+        isOpen = config?.business?.saturdayHours ? config.business.saturdayHours.includes('-') : true;
+      } else { // Weekday (Monday-Friday)
+        // Always open on weekdays by default
+        isOpen = config?.business?.weekdayHours ? config.business.weekdayHours.includes('-') : true;
+      }
+      
+      // Only include day if business is open
+      if (isOpen) {
+        availableDaysFound++;
+        
+        // Format date as YYYY-MM-DD without using toISOString() to avoid timezone issues
+        const formattedDate = `${year}-${month}-${day}`;
+        
+        const displayDate = date.toLocaleDateString('pt-BR', { 
+          weekday: 'short', 
+          day: '2-digit', 
+          month: '2-digit' 
+        });
+        
+        // Also include Brazilian format for matching
+        const brFormat = `${day}/${month}/${year}`;
+        
+        dates.push({
+          value: formattedDate,
+          display: displayDate,
+          brFormat: brFormat, // Add Brazilian date format for matching 
+          jsDate: new Date(date), // Store a copy of the JS Date object for reliable formatting
+          dayOfWeek: dayOfWeek // Store day of week for debugging
+        });
+        
+        console.log(`Added available date: ${displayDate} (${dayOfWeek === 0 ? 'Sunday' : dayOfWeek === 6 ? 'Saturday' : 'Weekday'})`);
+      } else {
+        console.log(`Skipped closed date: ${day}/${month} (${dayOfWeek === 0 ? 'Sunday' : dayOfWeek === 6 ? 'Saturday' : 'Holiday'})`);
+      }
     }
     
     console.log(`Total dates generated: ${dates.length}`);
@@ -512,6 +419,10 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
 
   // Generate time options for a specific date and worker
   const generateTimeOptions = async (workerId, date) => {
+    // IMPORTANT: Set an empty array right away to clear any previous times
+    // This prevents showing unfiltered times while filtering is in progress
+    setAvailableTimes([]);
+    
     // Get the day of the week (0 = Sunday, 6 = Saturday)
     const dayOfWeek = new Date(date).getDay();
     
@@ -554,7 +465,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     if (!businessHours) {
       console.log("No business hours defined for", date);
       setAvailableTimes([]);
-      return;
+      return [];
     }
     
     // Parse business hours (format: "07:00-19:00")
@@ -562,12 +473,13 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     if (!openTime || !closeTime) {
       console.log("Invalid business hours format:", businessHours);
       setAvailableTimes([]);
-      return;
+      return [];
     }
     
     const [startHour, startMinute] = openTime.split(':').map(Number);
     const [endHour, endMinute] = closeTime.split(':').map(Number);
     // Force 10-minute intervals to reduce the number of options
+    // This is only for generating time slots - actual conflict detection will use service duration
     const interval = 10;
     
     // Check if timeSlotCache already has times for this day/worker combo
@@ -592,20 +504,40 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       
       // If we already had cached times, filter them based on appointments
       if (baseTimeslots.length > 0) {
+        console.log(`Filtering ${baseTimeslots.length} time slots for conflicts with ${workerAppointments.length} appointments`);
+        
         // Filter out any cached times that conflict with appointments
         const filteredTimes = baseTimeslots.filter(timeSlot => {
           // Parse the time slot
           const [slotHour, slotMinute] = timeSlot.split(':').map(Number);
           const timeSlotMinutes = slotHour * 60 + slotMinute;
-          const timeSlotEndMinutes = timeSlotMinutes + interval;
+          
+          // Get duration for appointment we're trying to book based on selected service
+          // Look for the selected service in the booking state or service config
+          let serviceDuration = 30; // Default to 30 minutes
+          
+          // If booking a specific service, look up its duration
+          if (bookingState?.selectedService) {
+            const services = config?.services?.items || [];
+            const selectedService = services.find(s => s.name === bookingState.selectedService);
+            if (selectedService?.duration) {
+              serviceDuration = selectedService.duration;
+              console.log(`Using duration ${serviceDuration} minutes for service: ${bookingState.selectedService}`);
+            } else {
+              console.log(`No duration found for ${bookingState.selectedService}, using default: ${serviceDuration} minutes`);
+            }
+          }
+          
+          // Calculate when this appointment would end if booked
+          const timeSlotEndMinutes = timeSlotMinutes + serviceDuration;
           
           // Check if this time slot conflicts with any existing appointment
           return !workerAppointments.some(appt => {
             // Parse the appointment start time
             const [apptHour, apptMinute] = appt.start_time.split(':').map(Number);
             
-            // Duration of the appointment (default to interval if not specified)
-            const appointmentDuration = appt.duration || interval;
+            // Duration of the existing appointment (default to 30 minutes if not specified)
+            const appointmentDuration = appt.duration || 30;
             
             // Calculate start and end times in minutes since midnight
             const apptStartMinutes = apptHour * 60 + apptMinute;
@@ -624,7 +556,17 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             );
             
             if (hasOverlap) {
-              console.log(`Time conflict: ${timeSlot} conflicts with appointment at ${appt.start_time}`);
+              // Format minutes for better readability
+              const endHour = Math.floor(timeSlotEndMinutes / 60);
+              const endMin = timeSlotEndMinutes % 60;
+              const formattedEndTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`;
+              
+              // Format appointment end time too
+              const apptEndHour = Math.floor(apptEndMinutes / 60);
+              const apptEndMin = apptEndMinutes % 60;
+              const formattedApptEndTime = `${String(apptEndHour).padStart(2, '0')}:${String(apptEndMin).padStart(2, '0')}`;
+              
+              console.log(`Time conflict: ${timeSlot} (${serviceDuration}min service) conflicts with appointment at ${appt.start_time}-${formattedApptEndTime} (${appointmentDuration}min). Our service would end at ${formattedEndTime}`);
             }
             
             return hasOverlap;
@@ -632,12 +574,19 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
         });
         
         console.log(`Filtered from ${baseTimeslots.length} to ${filteredTimes.length} available times`);
+        // Update the state with filtered times
         setAvailableTimes(filteredTimes);
+        
+        // Return the filtered times so we can use them immediately
+        return filteredTimes;
       }
       // No cached times yet, generate them from scratch
       else {
-        // Track all time slots
-        const times = [];
+        // Track all potential time slots
+        const allPossibleTimes = [];
+        // Track only available (non-conflicting) time slots
+        const availableTimes = [];
+        
         let currentHour = startHour;
         let currentMinute = startMinute;
         
@@ -647,13 +596,16 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           const formattedMinute = currentMinute.toString().padStart(2, '0');
           const timeSlot = `${formattedHour}:${formattedMinute}`;
           
+          // Add to all possible times
+          allPossibleTimes.push(timeSlot);
+          
           // Check if this time slot conflicts with any existing appointment
           const isAvailable = !workerAppointments.some(appt => {
             // Parse the appointment start time
             const [apptHour, apptMinute] = appt.start_time.split(':').map(Number);
             
-            // Duration of the appointment (default to interval if not specified)
-            const appointmentDuration = appt.duration || interval;
+            // Duration of the existing appointment (default to 30 minutes if not specified)
+            const appointmentDuration = appt.duration || 30;
             
             // Calculate start and end times in minutes since midnight
             const apptStartMinutes = apptHour * 60 + apptMinute;
@@ -662,8 +614,25 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             // Current time slot in minutes since midnight
             const timeSlotMinutes = currentHour * 60 + currentMinute;
             
-            // Current time slot end time
-            const timeSlotEndMinutes = timeSlotMinutes + interval;
+            // Get duration for appointment we're trying to book based on selected service
+            // Look for the selected service in the booking state or service config
+            let serviceDuration = 30; // Default to 30 minutes
+            
+            // If booking a specific service, look up its duration
+            if (bookingState?.selectedService) {
+              const services = config?.services?.items || [];
+              const selectedService = services.find(s => s.name === bookingState.selectedService);
+              if (selectedService?.duration) {
+                serviceDuration = selectedService.duration;
+                // More detailed logging for only the first few time slots to avoid too many logs
+                if (currentHour === startHour && currentMinute <= startMinute + interval) {
+                  console.log(`Using duration ${serviceDuration} minutes for service: ${bookingState.selectedService}`);
+                }
+              }
+            }
+            
+            // Calculate when this appointment would end if booked
+            const timeSlotEndMinutes = timeSlotMinutes + serviceDuration;
             
             // Check if there's an overlap between the two time ranges
             // Two ranges overlap if one range starts before the other ends and ends after the other starts
@@ -680,15 +649,25 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             
             // For debugging only
             if (hasOverlap) {
-              console.log(`Time conflict: ${currentHour}:${currentMinute} conflicts with appointment at ${apptHour}:${apptMinute} (duration: ${appointmentDuration})`);
+              // Format minutes for better readability
+              const endHour = Math.floor(timeSlotEndMinutes / 60);
+              const endMin = timeSlotEndMinutes % 60;
+              const formattedEndTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`;
+              
+              // Format appointment end time too
+              const apptEndHour = Math.floor(apptEndMinutes / 60);
+              const apptEndMin = apptEndMinutes % 60;
+              const formattedApptEndTime = `${String(apptEndHour).padStart(2, '0')}:${String(apptEndMin).padStart(2, '0')}`;
+              
+              console.log(`Time conflict: ${formattedHour}:${formattedMinute} (${serviceDuration}min service) conflicts with appointment at ${apptHour}:${apptMinute}-${formattedApptEndTime} (${appointmentDuration}min). Our service would end at ${formattedEndTime}`);
             }
             
             return hasOverlap;
           });
           
-          // Add available time slot
+          // Add available time slot to filtered list only if it doesn't conflict
           if (isAvailable) {
-            times.push(timeSlot);
+            availableTimes.push(timeSlot);
           }
           
           // Move to next time slot
@@ -699,28 +678,40 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           }
         }
         
-        console.log(`Generated ${times.length} available times from scratch`);
-        setAvailableTimes(times);
+        console.log(`Total time slots: ${allPossibleTimes.length}, Available after filtering: ${availableTimes.length}`);
+        // This is the key fix - only set the FILTERED times as available times
+        setAvailableTimes(availableTimes);
+        
+        // Update cache with filtered times only
+        const cacheKey = `${workerId}-${date}`;
+        timeSlotCache.current[cacheKey] = availableTimes;
+        
+        // Return the filtered times so we can use them immediately
+        return availableTimes;
       }
     } catch (error) {
       console.error('Error fetching appointments:', error);
       
-      // Error handling: If we already have cached times, use them
+      // Error handling: If we already have cached times, use them but log a warning
       if (baseTimeslots.length > 0) {
-        console.log("Error occurred, using cached times without filtering:", baseTimeslots.length, "slots");
+        console.log("⚠️ Error occurred, using cached times without filtering:", baseTimeslots.length, "slots");
+        // In case of error, still use cached times but warn
         setAvailableTimes(baseTimeslots);
       } 
       // Fallback to simple time generation without filtering
       else {
-        console.log("Error occurred, generating fallback times");
-        const times = [];
+        console.log("⚠️ Error occurred, generating fallback times without conflict detection");
+        // In fallback mode, we won't be able to filter conflicts
+        // This should be rare - only happens if appointments can't be fetched
+        
+        const fallbackTimes = [];
         let currentHour = startHour;
         let currentMinute = startMinute;
         
         while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
           const formattedHour = currentHour.toString().padStart(2, '0');
           const formattedMinute = currentMinute.toString().padStart(2, '0');
-          times.push(`${formattedHour}:${formattedMinute}`);
+          fallbackTimes.push(`${formattedHour}:${formattedMinute}`);
           
           currentMinute += interval;
           if (currentMinute >= 60) {
@@ -729,8 +720,15 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           }
         }
         
-        console.log(`Generated ${times.length} fallback times`);
-        setAvailableTimes(times);
+        console.log(`Generated ${fallbackTimes.length} fallback times (without conflict detection)`);
+        // Mark that these are fallback times without conflict detection
+        setAvailableTimes(fallbackTimes);
+        
+        // Don't cache these since they're not filtered
+        // IMPORTANT: No caching here!
+        
+        // Return the fallback times
+        return fallbackTimes;
       }
     }
   };
@@ -1134,104 +1132,44 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       setMessages(prev => [...prev, loadingResponse]);
       
       try {
-        // Check if we have cached time slots for this date and worker
-        const cacheKey = `${bookingState.selectedWorker.worker_id}-${date.value}`;
-        let timeSlots = [];
+        // Show loading message
+        setMessages(prev => {
+          const updatedMessages = [...prev];
+          updatedMessages[updatedMessages.length - 1] = { 
+            role: 'assistant', 
+            content: `Buscando horários disponíveis para o dia ${date.display}...`
+          };
+          return updatedMessages;
+        });
         
-        if (timeSlotCache.current[cacheKey]) {
-          console.log("Using cached time slots for", date.display);
-          timeSlots = timeSlotCache.current[cacheKey];
-          setAvailableTimes(timeSlots);
-        } else {
-          // Generate time options for this date and worker
-          console.log("Generating time slots for", date.display);
-          // Get the day of week before calling generateTimeOptions
-          const dayOfWeek = new Date(date.value).getDay();
-          
-          // Pre-populate with default times for weekdays if business hours exist
-          let businessHours;
-          
-          if (dayOfWeek === 0) { // Sunday
-            // Check for valid Sunday hours format (HH:MM-HH:MM)
-            businessHours = (config?.business?.sundayHours && config.business.sundayHours.includes('-')) 
-              ? config.business.sundayHours 
-              : '';
-          } else if (dayOfWeek === 6) { // Saturday
-            // For Saturday: Use default hours if not specified
-            businessHours = (config?.business?.saturdayHours && config.business.saturdayHours.includes('-')) 
-              ? config.business.saturdayHours 
-              : '08:00-14:00';
-          } else { // Weekdays (Monday-Friday)
-            // For weekdays: Always open by default with standard business hours
-            businessHours = (config?.business?.weekdayHours && config.business.weekdayHours.includes('-')) 
-              ? config.business.weekdayHours 
-              : '07:00-19:00';
-          }
-          
-          // Prefill with default time slots based on business hours
-          if (businessHours) {
-            console.log("Using business hours:", businessHours, "for day", dayOfWeek);
-            const [openTime, closeTime] = businessHours.split('-');
-            if (openTime && closeTime) {
-              const [startHour, startMinute] = openTime.split(':').map(Number);
-              const [endHour, endMinute] = closeTime.split(':').map(Number);
-              // Force 10-minute intervals to reduce the number of options
-    const interval = 10;
-              
-              // Create default time slots based on business hours
-              const defaultTimes = [];
-              let currentHour = startHour;
-              let currentMinute = startMinute;
-              
-              while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
-                const formattedHour = currentHour.toString().padStart(2, '0');
-                const formattedMinute = currentMinute.toString().padStart(2, '0');
-                defaultTimes.push(`${formattedHour}:${formattedMinute}`);
-                
-                // Move to next time slot
-                currentMinute += interval;
-                if (currentMinute >= 60) {
-                  currentHour += 1;
-                  currentMinute -= 60;
-                }
-              }
-              
-              // Pre-cache these default times even before checking for conflicts
-              timeSlotCache.current[cacheKey] = defaultTimes;
-              timeSlots = defaultTimes;
-              setAvailableTimes(defaultTimes);
-            }
-          }
-          
-          // Now call generateTimeOptions to filter out any conflicting slots
-          await generateTimeOptions(bookingState.selectedWorker.worker_id, date.value);
-          
-          // Update the cache with filtered results
-          if (availableTimes.length > 0) {
-            timeSlots = [...availableTimes]; // Make a copy
-            timeSlotCache.current[cacheKey] = timeSlots;
-          }
-        }
+        // Generate time options and get the filtered results directly
+        // This will do all the time slot generation and filtering in one step
+        const timeSlots = await generateTimeOptions(bookingState.selectedWorker.worker_id, date.value) || [];
         
         // Create message with time options included
         const question = "Qual horário você prefere no dia " + date.display + "?";
         
-        // Try to use cached times first, if available
+        // Use the timeSlots we get directly from generateTimeOptions, not from state
         if (timeSlots && timeSlots.length > 0) {
-          console.log("Showing", timeSlots.length, "time slots for", date.display);
+          console.log("Showing", timeSlots.length, "FILTERED time slots for", date.display);
           
-          // Format time options message with available times
-          const header = 'Escolha um horário digitando o número correspondente:';
-          const options = timeSlots.map((time, index) => 
-            `${index + 1}. ${time}`
-          ).join('\n');
+          // Format time options message with available times - use the filtered time slots
+          const header = 'Escolha um horário digitando diretamente no formato HH:MM:';
           
-          // Replace loading message with time options
+          // Simplified approach - just show numbered list of available times
+          const timesToShow = timeSlots.map((timeStr, index) => {
+            return `${index + 1}. ${timeStr}`;
+          });
+          
+          const options = timesToShow.join('\n');
+          const note = 'IMPORTANTE: Digite o horário no formato HH:MM (exemplo: 14:30)\n\nAlguns horários foram escondidos por conflito com outros agendamentos.';
+          
+          // Replace loading message with time options immediately, no need to wait
           setMessages(prev => {
             const updatedMessages = [...prev];
             updatedMessages[updatedMessages.length - 1] = { 
               role: 'assistant', 
-              content: question + "\n\n" + header + "\n\n" + options
+              content: question + "\n\n" + header + "\n\n" + options + "\n\n" + note
             };
             return updatedMessages;
           });
@@ -1248,6 +1186,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             const [startHour, startMinute] = openTime.split(':').map(Number);
             const [endHour, endMinute] = closeTime.split(':').map(Number);
             // Force 10-minute intervals to reduce the number of options
+    // This is only for generating time slots - actual conflict detection will use service duration
     const interval = 10;
             
             let currentHour = startHour;
@@ -1268,6 +1207,9 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             
             // Set these as available times
             setAvailableTimes(defaultTimes);
+            
+            // Create a cache key for this worker/date combo
+            const cacheKey = `${bookingState.selectedWorker.worker_id}-${date.value}`;
             timeSlotCache.current[cacheKey] = defaultTimes;
             
             // Show them to the user
@@ -1953,8 +1895,50 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
         if (ctx.step === 5 && availableTimes.length >= num && num > 0) {
           // Save the selected time from available options
           const selectedTime = availableTimes[num - 1];
+          
+          // Make sure this time is still available (not conflicting with appointments)
+          const workerId = bookingState.selectedWorker?.worker_id;
+          const date = bookingState.selectedDate;
+          
+          // First let the user know we're checking availability
+          setMessages(prev => [...prev, 
+            { role: 'user', content: `${num}` },
+            { role: 'assistant', content: `Verificando disponibilidade para ${selectedTime}...` }
+          ]);
+          
           setInput('');
-          handleTimeSelect(selectedTime);
+          
+          // Regenerate time options to ensure we have the latest data
+          if (workerId && date) {
+            generateTimeOptions(workerId, date).then(() => {
+              // Check if the selected time is still in the filtered list
+              if (availableTimes.includes(selectedTime)) {
+                // Time is available, proceed with booking
+                handleTimeSelect(selectedTime);
+              } else {
+                // Time conflicts with an appointment, show error
+                setMessages(prev => {
+                  const updatedMessages = [...prev];
+                  updatedMessages[updatedMessages.length - 1] = { 
+                    role: 'assistant', 
+                    content: `Desculpe, o horário ${selectedTime} não está mais disponível devido a um conflito com outro agendamento. Por favor, escolha outro horário.`
+                  };
+                  return updatedMessages;
+                });
+                
+                // Show updated time options
+                setTimeout(() => {
+                  const timeListMsg = formatTimeOptionsMessage();
+                  if (timeListMsg) {
+                    setMessages(prev => [...prev, { role: 'assistant', content: timeListMsg }]);
+                  }
+                }, 500);
+              }
+            });
+          } else {
+            // If we can't check availability, proceed with caution
+            handleTimeSelect(selectedTime);
+          }
           return;
         } else if (ctx.step === 5) {
           // Handle invalid time selection - show available times again
@@ -2098,49 +2082,35 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       
       // Handle time selection (step 5)
       if (ctx.step === 5) {
-        // Dump available time slots for debugging
-        console.log(`⚓ Time selection - checking ${textToSend} against ${availableTimes.length} options`);
-        if (availableTimes.length > 0) {
-          console.log(`⚓ First 3 time entries: ${JSON.stringify(availableTimes.slice(0, 3))}`);
-        }
+        // *** MATCHING WHATSAPP BEHAVIOR ***
+        // The WhatsApp integration does NOT process numeric input for times
+        // It expects the user to enter times in HH:MM format directly
+        // To be consistent, we'll leave the raw numeric input here
         
-        // Get available time slots from the state - ensuring consistent formatting
-        const availableTimeSlots = availableTimes.map(time => {
-          // Convert objects to strings if needed
-          const timeStr = typeof time === 'object' && time.formatted 
-            ? time.formatted 
-            : String(time);
-          return timeStr;
-        });
-        
-        console.log(`⚓ Converted first 3 time slots: ${availableTimeSlots.slice(0, 3).join(', ')}`);
-        
-        // ALWAYS print the numeric option the user entered - for direct debugging
-        if (directNumber > 0 && directNumber <= availableTimeSlots.length) {
-          console.log(`🔍 User entered option ${directNumber} which should be: "${availableTimeSlots[directNumber - 1]}"`);
+        // Only convert input if it's already in HH:MM format
+        if (/^\d{2}:\d{2}$/.test(textToSend)) {
+          // Valid time format, keep as is
+          processedText = textToSend;
+          displayText = textToSend;
+          console.log(`✅ [Time] Valid time format entered: "${textToSend}"`);
         } else {
-          console.log(`🔍 User entered option ${directNumber} which is out of range (1-${availableTimeSlots.length})`);
-        }
-        
-        // Try direct number matching first
-        if (availableTimeSlots.length > 0 && directNumber > 0 && directNumber <= availableTimeSlots.length) {
-          processedText = availableTimeSlots[directNumber - 1];
-          displayText = processedText; // Update the display text too
-          console.log(`✅ [Time-direct] ${textToSend} → "${processedText}"`);
-        }
-        // Fallback to index-based if direct matching fails
-        else if (availableTimeSlots.length > 0 && optionIndex >= 0 && optionIndex < availableTimeSlots.length) {
-          processedText = availableTimeSlots[optionIndex];
-          displayText = processedText; // Update the display text too
-          console.log(`✅ [Time-index] ${textToSend} → "${processedText}"`);
-        } else {
-          console.log(`⚠️ [Time] Failed to convert ${textToSend}. Available slots: ${availableTimeSlots.length}`);
+          // Not a valid time format, leave as is (will show validation error)
+          console.log(`⚠️ [Time] Invalid time format: "${textToSend}" (should be HH:MM)`);
+          
+          // Add note for testing - in real WhatsApp this falls through to FSM validation
+          if (/^\d+$/.test(textToSend)) {
+            console.log(`ℹ️ IMPORTANT: WhatsApp integration doesn't convert numeric options for times. You entered "${textToSend}" but need to enter a time like "07:30".`);
+          }
         }
       }
       
       // Handle date selection (step 4)
       if (ctx.step === 4) {
-        // Get available dates from the state
+        // *** MATCHING WHATSAPP BEHAVIOR ***
+        // The WhatsApp integration does NOT process numeric input for dates
+        // It expects the user to enter dates in YYYY-MM-DD format directly
+        
+        // Get available dates from the state (for debugging only)
         const availableDateOptions = availableDates.map(date => date.display);
         
         // Function to convert display date to YYYY-MM-DD
@@ -2156,21 +2126,26 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           return displayStr;
         };
         
-        // Try direct number matching first
-        if (availableDateOptions.length > 0 && directNumber > 0 && directNumber <= availableDateOptions.length) {
-          const displayDate = availableDateOptions[directNumber - 1];
-          processedText = formatDate(displayDate); // For backend processing
-          displayText = displayDate;               // For user display in chat
-          console.log(`✅ [Date-direct] ${textToSend} → "${displayDate}" → "${processedText}"`);
-        }
-        // Fallback to index-based if direct matching fails
-        else if (availableDateOptions.length > 0 && optionIndex >= 0 && optionIndex < availableDateOptions.length) {
-          const displayDate = availableDateOptions[optionIndex];
-          processedText = formatDate(displayDate); // For backend processing
-          displayText = displayDate;               // For user display in chat
-          console.log(`✅ [Date-index] ${textToSend} → "${displayDate}" → "${processedText}"`);
+        // For consistency with WhatsApp, we'll now process dates just like times
+        if (/^\d{4}-\d{2}-\d{2}$/.test(textToSend)) {
+          // Valid date format, keep as is
+          processedText = textToSend;
+          displayText = textToSend;
+          console.log(`✅ [Date] Valid date format entered: "${textToSend}"`);
+        } else if (availableDateOptions.includes(textToSend)) {
+          // The user typed the exact display date (like "qui., 15/05")
+          // Convert it to YYYY-MM-DD
+          processedText = formatDate(textToSend);
+          displayText = textToSend;
+          console.log(`✅ [Date] Display date format entered: "${textToSend}" → "${processedText}"`);
         } else {
-          console.log(`⚠️ [Date] Failed to convert ${textToSend}. Available dates: ${availableDateOptions.length}`);
+          // Not a valid date format, leave as is (will show validation error)
+          console.log(`⚠️ [Date] Invalid date format: "${textToSend}" (should be YYYY-MM-DD)`);
+          
+          // Add note for testing - in real WhatsApp this falls through to FSM validation
+          if (/^\d+$/.test(textToSend)) {
+            console.log(`ℹ️ IMPORTANT: WhatsApp integration doesn't convert numeric options for dates. You entered "${textToSend}" but need to enter a date like "2025-05-15".`);
+          }
         }
       }
     }
@@ -2238,9 +2213,24 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       } else if (context.step === 5) {
         // Show time options as a message after a small delay
         setTimeout(() => {
-          const timeListMsg = formatTimeOptionsMessage();
-          if (timeListMsg) {
-            setMessages(prev => [...prev, { role: 'assistant', content: timeListMsg }]);
+          // Make sure we have the latest filtered time slots
+          const workerId = bookingState.selectedWorker?.worker_id;
+          const date = bookingState.selectedDate;
+          
+          if (workerId && date) {
+            // Regenerate time options to ensure we have the most up-to-date filtered list
+            generateTimeOptions(workerId, date).then(() => {
+              const timeListMsg = formatTimeOptionsMessage();
+              if (timeListMsg) {
+                setMessages(prev => [...prev, { role: 'assistant', content: timeListMsg }]);
+              }
+            });
+          } else {
+            // Fallback if worker or date is missing
+            const timeListMsg = formatTimeOptionsMessage();
+            if (timeListMsg) {
+              setMessages(prev => [...prev, { role: 'assistant', content: timeListMsg }]);
+            }
           }
         }, 500);
       }
