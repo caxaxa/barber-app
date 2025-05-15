@@ -1410,14 +1410,11 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     const textToSend = messageText || input;
     if (!textToSend.trim()) return;
     
-    // Grab the fresh step value
-    const currentStep = ctx.step;
-    
     const userMessage = { role: 'user', content: textToSend };
 
     if (isGuidedMode()) {
       // First, ensure that all available dates are generated immediately
-      if (currentStep === 4 && !availableDates.length) {
+      if (ctx.step === 4 && !availableDates.length) {
         console.log("Generating dates immediately since we're at date selection step");
         generateDateOptions();
       }
@@ -1427,21 +1424,8 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
       if (numMatch) {
         const num = parseInt(numMatch[0], 10);
         
-        // ——— TIME SELECTION BY NUMBER ———
-        if (currentStep === 5 && availableTimes.length >= num && num > 0) {
-          // Show the raw input (the number) in the UI
-          setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
-          
-          // Clear input
-          setInput('');
-          
-          // Pick the nth time from the array
-          handleTimeSelect(availableTimes[num - 1], false); // false = don't add message
-          return;
-        }
-        
         // Handle service selection by number
-        if (currentStep === 2 && commonServices.length >= num && num > 0) {
+        if (ctx.step === 2 && commonServices.length >= num && num > 0) {
           const selectedService = commonServices[num - 1];
           
           // Show the raw input (the number) in the UI, not the service name
