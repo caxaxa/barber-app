@@ -194,39 +194,14 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     // If no available dates, generate them immediately
     if (!availableDates || availableDates.length === 0) {
       console.warn("Warning: No available dates available when formatting message! Generating now.");
-      // Generate dates directly here to ensure we always have options
-      const dates = [];
-      const today = new Date();
       
-      // Add the next 14 days
-      for (let i = 0; i < 14; i++) {
-        const date = new Date();
-        date.setDate(today.getDate() + i);
-        
-        // Format date for display
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const formattedDate = `${year}-${month}-${day}`;
-        
-        const displayDate = date.toLocaleDateString('pt-BR', { 
-          weekday: 'short', 
-          day: '2-digit', 
-          month: '2-digit' 
-        });
-        
-        const brFormat = `${day}/${month}/${year}`;
-        
-        dates.push({
-          value: formattedDate,
-          display: displayDate,
-          brFormat: brFormat,
-          jsDate: new Date(date)
-        });
+      // Generate filtered dates
+      const dates = generateDateOptions();
+      
+      // If we still don't have dates, create a message about it
+      if (!dates || dates.length === 0) {
+        return 'Não há datas disponíveis no momento. Por favor, tente novamente mais tarde.';
       }
-      
-      // Update state with these dates
-      setAvailableDates(dates);
       
       // *** MATCHING WHATSAPP BEHAVIOR ***
       // Since WhatsApp expects YYYY-MM-DD format for dates, we'll change the instruction
@@ -242,12 +217,20 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     // *** MATCHING WHATSAPP BEHAVIOR ***
     // Since WhatsApp expects YYYY-MM-DD format for dates, we'll change the instruction
     const header = 'Escolha uma data digitando diretamente no formato AAAA-MM-DD:';
-    const options = availableDates.map((date, index) => 
+    
+    // Use the FILTERED availableDates directly
+    // Make a copy to avoid race conditions
+    const filteredDates = [...availableDates];
+    console.log(`Displaying ${filteredDates.length} filtered dates`);
+    
+    // Format options from filtered availableDates
+    const options = filteredDates.map((date, index) => 
       `${index + 1}. ${date.display} (${date.value})`
     ).join('\n');
-    const note = 'IMPORTANTE: Digite a data no formato AAAA-MM-DD (exemplo: 2025-05-15)';
     
-    console.log("Generated date options message with", availableDates.length, "options");
+    const note = 'IMPORTANTE: Digite a data no formato AAAA-MM-DD (exemplo: 2025-05-15)\n\n* Somente datas com horários disponíveis são mostradas.';
+    
+    console.log("Generated date options message with", filteredDates.length, "FILTERED options");
     return `${header}\n\n${options}\n\n${note}`;
   };
   
@@ -318,12 +301,16 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
   // Function to generate available dates (next 14 days, simple list only)
   const generateDateOptions = () => {
     console.log("Generating date options with config:", config?.business);
+    
+    // Clear the date array first to prevent stale data
+    setAvailableDates([]);
+    
     const dates = [];
     const today = new Date();
     const specificHolidays = config?.business?.specificHolidays || [];
     
     // Try to get up to 10 available days
-    let daysToCheck = 30; // Increase the search range to find enough available days
+    let daysToCheck = 40; // Increase the search range to find enough available days
     let availableDaysFound = 0;
     
     for (let i = 0; i < daysToCheck && availableDaysFound < 10; i++) {
@@ -389,9 +376,9 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
       }
     }
     
-    console.log(`Total dates generated: ${dates.length}`);
+    console.log(`Total dates generated: ${dates.length} - ALL FILTERED for availability`);
     
-    // Set the dates in state and make sure options are shown
+    // Set the dates in state AFTER filtering
     setAvailableDates(dates);
     setShowDateOptions(true);
     
@@ -955,7 +942,7 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
   };
 
   // Handle service selection - now by text input
-  const handleServiceSelect = (service) => {
+  const handleServiceSelect = (service, addToMessages = true) => {
     if (isGuidedMode()) {
       // In guided mode, update state and advance
       // Using a functional update to ensure we're working with the latest state
@@ -974,11 +961,13 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
         return newState;
       });
       
-      // Add this selection to chat messages
-      setMessages(prev => [
-        ...prev, 
-        { role: 'user', content: service }
-      ]);
+      // Add this selection to chat messages only if requested
+      if (addToMessages) {
+        setMessages(prev => [
+          ...prev, 
+          { role: 'user', content: service }
+        ]);
+      }
       
       // For individual accounts, skip worker selection
       // INDIVIDUAL: auto-assign the solo worker and jump to date
@@ -1058,7 +1047,7 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
   };
   
   // Handle worker selection
-  const handleWorkerSelect = (worker) => {
+  const handleWorkerSelect = (worker, addToMessages = true) => {
     console.log("Selected worker:", worker);
     
     if (isGuidedMode()) {
@@ -1073,11 +1062,13 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
         return newState;
       });
       
-      // Add this selection to chat messages
-      setMessages(prev => [
-        ...prev, 
-        { role: 'user', content: worker.name }
-      ]);
+      // Add this selection to chat messages only if requested
+      if (addToMessages) {
+        setMessages(prev => [
+          ...prev, 
+          { role: 'user', content: worker.name }
+        ]);
+      }
       
       // Generate date options
       generateDateOptions();
@@ -1107,7 +1098,7 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
   const timeSlotCache = useRef({});
 
   // Handle date selection
-  const handleDateSelect = async (date) => {
+  const handleDateSelect = async (date, addToMessages = true) => {
     if (isGuidedMode()) {
       console.log("Date selected:", date.display, date.value);
       
@@ -1118,11 +1109,13 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
         step: 5
       }));
       
-      // Add this selection to chat messages
-      setMessages(prev => [
-        ...prev, 
-        { role: 'user', content: date.display }
-      ]);
+      // Add this selection to chat messages only if requested
+      if (addToMessages) {
+        setMessages(prev => [
+          ...prev, 
+          { role: 'user', content: date.display }
+        ]);
+      }
       
       // Show loading message
       const loadingResponse = { 
@@ -1379,24 +1372,45 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
         // Handle service selection by number
         if (ctx.step === 2 && commonServices.length >= num && num > 0) {
           const selectedService = commonServices[num - 1];
+          
+          // Show the raw input (the number) in the UI, not the service name
+          setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+          
+          // Clear input
           setInput('');
-          handleServiceSelect(selectedService);
+          
+          // Process the selection in the background (without adding another message)
+          handleServiceSelect(selectedService, false); // false = don't add to messages
           return;
         }
         
         // Handle worker selection by number
         else if (ctx.step === 3 && workers.length >= num && num > 0) {
           const selectedWorker = workers[num - 1];
+          
+          // Show the raw input (the number) in the UI, not the worker name
+          setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+          
+          // Clear input
           setInput('');
-          handleWorkerSelect(selectedWorker);
+          
+          // Process the selection in the background (without adding another message)
+          handleWorkerSelect(selectedWorker, false); // false = don't add to messages
           return;
         }
         
         // Handle date selection by number
         else if (ctx.step === 4 && availableDates.length >= num && num > 0) {
           const selectedDate = availableDates[num - 1];
+          
+          // Show the raw input (the number) in the UI, not the date
+          setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+          
+          // Clear input
           setInput('');
-          handleDateSelect(selectedDate);
+          
+          // Process the selection in the background (without adding another message)
+          handleDateSelect(selectedDate, false); // false = don't add to messages
           return;
         }
       }
@@ -1900,9 +1914,9 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
           const workerId = bookingState.selectedWorker?.worker_id;
           const date = bookingState.selectedDate;
           
-          // First let the user know we're checking availability
+          // First let the user know we're checking availability - show the raw number input
           setMessages(prev => [...prev, 
-            { role: 'user', content: `${num}` },
+            { role: 'user', content: textToSend }, // Show the exact input (number)
             { role: 'assistant', content: `Verificando disponibilidade para ${selectedTime}...` }
           ]);
           
@@ -2203,8 +2217,18 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
           }
         }, 500);
       } else if (context.step === 4) {
-        // Show date options as a message after a small delay
+        // Get filtered date options first, then display them
+        console.log("Getting filtered date options for step 4");
+        
+        // Reset any previous dates
+        setAvailableDates([]);
+        
+        // Generate filtered dates
+        generateDateOptions();
+        
+        // Show date options as a message after a small delay to ensure filtering is complete
         setTimeout(() => {
+          // Now format the message with the filtered dates
           const dateListMsg = formatDateOptionsMessage();
           if (dateListMsg) {
             setMessages(prev => [...prev, { role: 'assistant', content: dateListMsg }]);
