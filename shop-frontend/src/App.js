@@ -9,6 +9,8 @@ import LoginPage       from "./pages/LoginPage";
 import AdminPage       from "./pages/AdminPage";        // ← example
 import BookingWidget   from "./pages/BookingWidget";    // ← new share-link page
 import TestDateRange   from "./pages/TestDateRange";    // ← date range test component
+import WhatsAppTest    from "./pages/WhatsAppTest";     // ← WhatsApp testing page
+import WebhookTest     from "./pages/WebhookTest";      // ← WhatsApp webhook configuration
 
 function AppInitializer({ children }) {
   useEffect(() => {
@@ -40,6 +42,8 @@ export default function App() {
               <Route path="/admin"     element={<AdminPage   />} />
               <Route path="/"          element={<LoginPage   />} />
               <Route path="/test-date-range" element={<TestDateRange />} />
+              <Route path="/whatsapp-test"   element={<WhatsAppTest />} />
+              <Route path="/webhook-test"    element={<WebhookTest />} />
               {/* add more routes as needed                                   */}
             </Routes>
           </BrowserRouter>
