@@ -57,9 +57,6 @@ export function useChatState(onAppointmentCreated) {
     try {
       setLoading(true);
       
-      // Add user message to the chat
-      addUserMessage(text);
-      
       // Filter out system messages for the API call
       const messagesForApi = messages.filter(m => m.role !== 'system');
       
@@ -74,18 +71,31 @@ export function useChatState(onAppointmentCreated) {
         onAppointmentCreated?.(responseData.appointment);
       }
       
-      // Add assistant response
-      addAssistantMessage(responseData.reply || 'Desculpe, não consegui processar sua solicitação.');
+      // Check if we got a successful response
+      if (!responseData.success && responseData.reply) {
+        // Add an info message about guided mode
+        const guidedModeMessage = 
+          "Você pode utilizar o modo guiado para fazer um agendamento de forma fácil e rápida.";
+        
+        addAssistantMessage(responseData.reply + "\n\n" + guidedModeMessage);
+      } else {
+        // Add assistant response
+        addAssistantMessage(responseData.reply || 'Desculpe, não consegui processar sua solicitação.');
+      }
       
       return responseData;
     } catch (error) {
       console.error('Error in chat API call:', error);
-      addAssistantMessage('Desculpe, tive um problema ao processar sua mensagem. Poderia tentar novamente?');
-      return null;
+      const errorMessage = 'Desculpe, tive um problema ao processar sua mensagem. Tente usar o modo guiado para agendamento.';
+      addAssistantMessage(errorMessage);
+      return {
+        reply: errorMessage,
+        success: false
+      };
     } finally {
       setLoading(false);
     }
-  }, [messages, addUserMessage, addAssistantMessage, onAppointmentCreated]);
+  }, [messages, addAssistantMessage, onAppointmentCreated]);
 
   // Send a message
   const sendMessage = useCallback(async (messageText = null) => {
@@ -93,6 +103,8 @@ export function useChatState(onAppointmentCreated) {
     if (!text.trim()) return;
     
     setInput(''); // Clear input field
+    
+    // Don't add user message here - it's already added in the Chatbox component
     
     // Process the message using the API
     return await processMessageWithAPI(text);

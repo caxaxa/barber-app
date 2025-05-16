@@ -7,7 +7,11 @@ import { chatStyles } from '../styles/chatStyles';
 /**
  * Chat header component that displays assistant and business information
  */
-export function ChatHeader({ assistantName, assistantTitle, businessName }) {
+export function ChatHeader({ 
+  assistantName = 'Amanda', 
+  assistantTitle = 'Assistente Virtual', 
+  businessName = 'Barbearia Elite' 
+}) {
   return (
     <Box sx={chatStyles.header}>
       <Box sx={chatStyles.avatarContainer}>
@@ -33,13 +37,7 @@ export function ChatHeader({ assistantName, assistantTitle, businessName }) {
 }
 
 ChatHeader.propTypes = {
-  assistantName: PropTypes.string.isRequired,
-  assistantTitle: PropTypes.string.isRequired,
-  businessName: PropTypes.string.isRequired
-};
-
-ChatHeader.defaultProps = {
-  assistantName: 'Amanda',
-  assistantTitle: 'Assistente Virtual',
-  businessName: 'Barbearia Elite'
+  assistantName: PropTypes.string,
+  assistantTitle: PropTypes.string,
+  businessName: PropTypes.string
 };

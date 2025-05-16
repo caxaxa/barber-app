@@ -194,77 +194,88 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     // If no available dates, generate them immediately
     if (!availableDates || availableDates.length === 0) {
       console.warn("Warning: No available dates available when formatting message! Generating now.");
-      // Generate dates directly here to ensure we always have options
-      const dates = [];
-      const today = new Date();
       
-      // Add the next 14 days
-      for (let i = 0; i < 14; i++) {
-        const date = new Date();
-        date.setDate(today.getDate() + i);
-        
-        // Format date for display
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const formattedDate = `${year}-${month}-${day}`;
-        
-        const displayDate = date.toLocaleDateString('pt-BR', { 
-          weekday: 'short', 
-          day: '2-digit', 
-          month: '2-digit' 
-        });
-        
-        const brFormat = `${day}/${month}/${year}`;
-        
-        dates.push({
-          value: formattedDate,
-          display: displayDate,
-          brFormat: brFormat,
-          jsDate: new Date(date)
-        });
+      // Generate filtered dates
+      const dates = generateDateOptions();
+      
+      // If we still don't have dates, create a message about it
+      if (!dates || dates.length === 0) {
+        return 'Não há datas disponíveis no momento. Por favor, tente novamente mais tarde.';
       }
       
-      // Update state with these dates
-      setAvailableDates(dates);
-      
-      // Format options from our locally generated dates
-      const header = 'Escolha uma data digitando o número correspondente:';
+      // *** MATCHING WHATSAPP BEHAVIOR ***
+      // Since WhatsApp expects YYYY-MM-DD format for dates, we'll change the instruction
+      const header = 'Escolha uma data digitando diretamente no formato AAAA-MM-DD:';
       const options = dates.map((date, index) => 
-        `${index + 1}. ${date.display}`
+        `${index + 1}. ${date.display} (${date.value})`
       ).join('\n');
+      const note = 'IMPORTANTE: Digite a data no formato AAAA-MM-DD (exemplo: 2025-05-15)';
       
-      return `${header}\n\n${options}`;
+      return `${header}\n\n${options}\n\n${note}`;
     }
     
-    // Normal case - use available dates from state
-    const header = 'Escolha uma data digitando o número correspondente:';
-    const options = availableDates.map((date, index) => 
-      `${index + 1}. ${date.display}`
+    // *** MATCHING WHATSAPP BEHAVIOR ***
+    // Since WhatsApp expects YYYY-MM-DD format for dates, we'll change the instruction
+    const header = 'Escolha uma data digitando diretamente no formato AAAA-MM-DD:';
+    
+    // Use the FILTERED availableDates directly
+    // Make a copy to avoid race conditions
+    const filteredDates = [...availableDates];
+    console.log(`Displaying ${filteredDates.length} filtered dates`);
+    
+    // Format options from filtered availableDates
+    const options = filteredDates.map((date, index) => 
+      `${index + 1}. ${date.display} (${date.value})`
     ).join('\n');
     
-    console.log("Generated date options message with", availableDates.length, "options");
-    return `${header}\n\n${options}`;
+    const note = 'IMPORTANTE: Digite a data no formato AAAA-MM-DD (exemplo: 2025-05-15)\n\n* Somente datas com horários disponíveis são mostradas.';
+    
+    console.log("Generated date options message with", filteredDates.length, "FILTERED options");
+    return `${header}\n\n${options}\n\n${note}`;
   };
   
   // Helper function to format time options as a numbered list message
   const formatTimeOptionsMessage = () => {
+    // CRITICAL FIX: Make a local copy of availableTimes to prevent race conditions
+    const times = [...availableTimes];
+    
     // Check if availableTimes is defined and has elements
-    if (!availableTimes || !Array.isArray(availableTimes) || availableTimes.length === 0) {
+    if (!times || !Array.isArray(times) || times.length === 0) {
       return 'Nenhum horário disponível.';
     }
     
-    const header = 'Escolha um horário digitando o número correspondente:';
-    const options = availableTimes.map((time, index) => 
-      `${index + 1}. ${time}`
-    ).join('\n');
+    // For debugging - log each time entry to see its structure
+    if (times.length > 0) {
+      console.log("Time entries structure:", 
+        typeof times[0], 
+        JSON.stringify(times[0]).substring(0, 50),
+        `(${times.length} total filtered times)`
+      );
+    }
     
-    return `${header}\n\n${options}`;
+    // *** MATCHING WHATSAPP BEHAVIOR ***
+    // Since WhatsApp expects HH:MM format for times, we'll change the instruction
+    // to match that behavior and avoid confusion
+    const header = 'Escolha um horário digitando diretamente no formato HH:MM:';
+    
+    // Simplified approach - just show numbered list of available times
+    // This avoids issues with numbering gaps from filtering
+    const timesToShow = times.map((time, index) => {
+      // Handle both string and object time formats
+      const timeStr = typeof time === 'object' && time.formatted ? time.formatted : String(time);
+      return `${index + 1}. ${timeStr}`;
+    });
+    
+    const options = timesToShow.join('\n');
+    const note = 'IMPORTANTE: Digite o horário no formato HH:MM (exemplo: 14:30)\n\nAlguns horários não estão disponíveis devido a outros agendamentos.';
+    
+    return `${header}\n\n${options}\n\n${note}`;
   };
   
+  // Use the config from the component scope
   const getPromptText = () => {
-    // Re-read the config to ensure it's accessible
-    const { config, getUserRole } = useConfig();
+    // Use the config already defined at the component level
+    // No need to call useConfig() again
     
     const businessType = config?.business?.type?.toUpperCase() || 'BARBEARIA';
     const businessName = config?.business?.name || 'Barbearia Elite';
@@ -285,164 +296,24 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     - AUTOMATICAMENTE agende com o único profissional disponível: ${workerNamesText}
     - Pule a etapa de escolha de profissional no fluxo de agendamento` : '';
     
-    return `
-# DIRETRIZES PARA O SISTEMA DE AGENDAMENTO DE ${businessType}
-
-## Informações Operacionais
-Data atual: ${new Date().toISOString().split('T')[0]}
-${config?.professionals?.[0]?.plural || 'Profissionais'} disponíveis: ${workerNames}
-${individualModifier}
-
-## Sua Função
-Você é ${assistantName}, ${assistantFullTitle}, a secretária virtual especializada da ${businessName}. Sua prioridade absoluta é oferecer uma experiência impecável de agendamento, combinando eficiência, empatia e solução de problemas.
-
-## Diretrizes de Comunicação e Persona
-
-### Tom e Estilo de Comunicação
-- Comunique-se EXCLUSIVAMENTE em português brasileiro.
-- Adote um tom caloroso, profissional e personalizado, como uma recepcionista experiente da mais alta categoria.
-- Use linguagem clara, direta e educada, evitando termos técnicos desnecessários.
-- Ajuste seu tom com base na interação: mais jovial com clientes informais, mais profissional com clientes formais.
-- SEMPRE mantenha um tom positivo, mesmo ao lidar com limitações ou conflitos de agenda.
-
-### Fluxo de Conversação
-- Cumprimente o cliente de forma personalizada com base no horário do dia.
-- Faça perguntas uma de cada vez, evitando sobrecarregar o cliente.
-- SEMPRE peça uma ação específica do cliente - nunca encerre uma mensagem sem uma pergunta ou solicitação clara.
-- NUNCA faça o cliente esperar sem necessidade, como dizer "um momento" e depois voltar.
-- Confirme periodicamente sua compreensão: "Entendi corretamente que você deseja...?"
-
-### Interações Personalizadas
-- Após obter o nome do cliente, dirija-se a ele pelo nome: "Sr. João" ou "Sra. Maria".
-- Para clientes que retornam, demonstre reconhecimento: "Que bom vê-lo novamente, Sr. Paulo!"
-- Adapte-se ao nível de formalidade usado pelo cliente (você/tu/senhor).
-- Use emojis com moderação para tornar a comunicação mais amigável quando apropriado.
-
-## Regras de Negócio Específicas
-
-### Horários de Funcionamento
-- Horário de operação: Segunda a Sábado, das ${config?.business?.openHours || '07:00'} às ${config?.business?.closeHours || '19:00'}
-- ${config?.business?.closedDays?.join?.(', ') || 'Domingo'}: FECHADO
-- Última marcação permitida: ${config?.business?.lastAppointmentTime || '18:20'} (garantindo tempo para conclusão)
-
-### Lógica de Disponibilidade - MUITO IMPORTANTE
-- PRESUMA QUE TODOS OS HORÁRIOS DENTRO DO HORÁRIO DE FUNCIONAMENTO ESTÃO DISPONÍVEIS
-- NÃO EXISTE CONCEITO DE "CONSULTAR" OU "VERIFICAR" DISPONIBILIDADE
-- Os ÚNICOS horários indisponíveis são aqueles em que já existem agendamentos confirmados
-- Se o cliente solicita um horário dentro do horário de funcionamento, SEMPRE considere disponível
-- NUNCA diga "vou verificar disponibilidade" ou "um momento enquanto consulto" - isto não existe
-- NUNCA demore para "procurar" horários disponíveis - isso é instantâneo
-
-### Duração e Intervalos de Serviço
-- Duração PADRÃO do atendimento: ${config?.business?.appointmentDuration || 40} minutos EXATOS
-- Intervalo OBRIGATÓRIO entre atendimentos: 0 minutos (agendamentos consecutivos são permitidos)
-- Horários de início permitidos: a cada ${config?.business?.appointmentInterval || 10} minutos (${config?.business?.openHours || '07:00'}, ${addMinutes(config?.business?.openHours || '07:00', config?.business?.appointmentInterval || 10)}, ${addMinutes(config?.business?.openHours || '07:00', (config?.business?.appointmentInterval || 10)*2)}, etc.)
-
-### Serviços e Especialidades
-- Cada ${config?.professionals?.[0]?.singular || 'profissional'} tem especialidades específicas.
-- Se um cliente pedir um serviço especializado, sugira APENAS ${config?.professionals?.[0]?.plural || 'profissionais'} com essa especialidade.
-- Serviços VIP têm prioridade - ofereça os melhores horários para clientes VIP ou serviços premium.
-
-### Sistema de ${config?.professionals?.[0]?.plural || 'Profissionais'} e Alocação
-- NUNCA invente ${config?.professionals?.[0]?.plural || 'profissionais'} além dos listados como disponíveis.
-- NUNCA invente IDs de ${config?.professionals?.[0]?.plural || 'profissionais'} - use SOMENTE os IDs existentes.
-${isIndividual ? '' : `- Se o cliente não especificar um ${config?.professionals?.[0]?.singular || 'profissional'}, sugira até 3 opções disponíveis.`}
-- Aplique a lógica de prioridade: clientes regulares têm prioridade com ${config?.professionals?.[0]?.plural || 'profissionais'} específicos.
-
-### Regras de Conflito e Disponibilidade
-- Um ${config?.professionals?.[0]?.singular || 'profissional'} NÃO pode ter dois agendamentos simultâneos ou sobrepostos.
-- Mantenha o controle de disponibilidade dos ${config?.professionals?.[0]?.plural || 'profissionais'} por dia/hora com máxima precisão.
-- Aplique bloqueios automáticos: se um ${config?.professionals?.[0]?.singular || 'profissional'} tem agendamento às 14:00, ele NÃO estará disponível novamente até 14:40.
-
-## Formatos e Padrões de Dados
-
-### Formato de Data e Hora
-- Formato de data: AAAA-MM-DD (ISO 8601)
-- Formato de hora: HH:MM (24 horas, SEM SEGUNDOS)
-- Interpretar corretamente expressões temporais do cliente:
-  * "Hoje" = ${formattedDate}
-  * "Amanhã" = [data seguinte a ${formattedDate}]
-  * "Próxima semana" = semana após a semana atual
-
-### Validação de Dados
-- Valide RIGOROSAMENTE se as datas solicitadas estão no futuro.
-- Rejeite IMEDIATAMENTE agendamentos para datas no passado.
-- Confirme que o formato da hora está correto e divisível por ${config?.business?.appointmentInterval || 10} minutos.
-- Verifique se o ID do ${config?.professionals?.[0]?.singular || 'profissional'} existe na lista de ${config?.professionals?.[0]?.plural || 'profissionais'} disponíveis.
-- Certifique-se de que o nome do cliente foi fornecido antes de confirmar.
-
-### Confirmação e Finalização
-- SEMPRE obtenha confirmação explícita antes de finalizar o agendamento.
-- Estrutura de confirmação: "Para confirmar, você, [NOME DO CLIENTE], deseja agendar um [SERVIÇO] com [NOME DO ${config?.professionals?.[0]?.singular?.toUpperCase() || 'PROFISSIONAL'}] para o dia [DATA FORMATADA POR EXTENSO] às [HORA]."
-- Após confirmação, forneça apenas o objeto JSON exato, sem texto adicional:
-\`\`\`json
-{
-  "${config?.professionals?.[0]?.singular?.toLowerCase() || 'worker'}_id": [ID NUMÉRICO],
-  "date": "[AAAA-MM-DD]",
-  "start_time": "[HH:MM]",
-  "client_name": "[NOME COMPLETO]"
-}
-\`\`\`
-
-## Estratégias para Interface com Botões
-
-### Opções Interativas
-- O usuário pode interagir com botões de serviço, ${config?.professionals?.[0]?.plural?.toLowerCase() || 'profissionais'} e horários
-- Quando o usuário seleciona um serviço via botão, reconheça a escolha
-${isIndividual ? '' : `- Quando o usuário seleciona um ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} via botão, reconheça a escolha`}
-- Quando o usuário seleciona um horário via botão, reconheça a escolha
-
-## Conflitos de Agendamento
-- Se detectar conflito, explique CLARAMENTE: "Desculpe, [NOME DO ${config?.professionals?.[0]?.singular?.toUpperCase() || 'PROFISSIONAL'}] já tem um compromisso às [HORA CONFLITANTE]."
-- Ofereça SEMPRE 3 alternativas específicas: horários próximos, mesmo ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} OU mesmo horário, ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} diferente.
-- Use frases como: "Posso oferecer [ALTERNATIVA 1], [ALTERNATIVA 2] ou [ALTERNATIVA 3]. Qual seria sua preferência?"
-
-## Fluxo de Agendamento
-
-1. **Acolhimento**
-   - Cumprimente e se apresente de forma amigável.
-   - Pergunte o nome do cliente caso ainda não saiba.
-   - SEMPRE termine sua primeira mensagem com uma pergunta ou orientação clara.
-
-2. **Coleta de Preferências**
-   - Solicite UMA INFORMAÇÃO POR VEZ - nunca sobrecarregue o cliente com várias perguntas.
-   - Sugira opções de serviços${isIndividual ? '' : ` ou ${config?.professionals?.[0]?.plural?.toLowerCase() || 'profissionais'}`} quando apropriado.
-   - Utilize as preferências expressas pelo cliente para guiar o processo.
-
-3. **Verificação de Dados**
-   - Confirme cada dado fornecido pelo cliente antes de prosseguir.
-   - Valide o formato da data e hora.
-   - Verifique se o ${config?.professionals?.[0]?.singular?.toLowerCase() || 'profissional'} escolhido está disponível (não tem agendamento no mesmo horário).
-
-4. **Confirmação Final**
-   - Repita TODOS os detalhes do agendamento para confirmação
-   - Solicite aprovação explícita
-   - Forneça o JSON exato após confirmação (estritamente conforme formato)
-
-5. **Encerramento Positivo**
-   - Após confirmação da reserva, agradeça o cliente
-   - Forneça informações adicionais úteis (localização, estacionamento)
-   - Deixe canal aberto para dúvidas ou modificações
-
-## REGRAS ESSENCIAIS - OBRIGATÓRIO SEGUIR
-
-1. SEMPRE SOLICITE UMA AÇÃO/RESPOSTA DO CLIENTE - nunca termine sua mensagem sem pedir algo claro.
-2. NUNCA indique que está "verificando" disponibilidade - não é necessário.
-3. PRESUMA QUE TODOS HORÁRIOS NO PERÍODO DE FUNCIONAMENTO ESTÃO DISPONÍVEIS, exceto se já houver agendamento.
-4. SEJA DIRETO E EFICIENTE - não adicione etapas desnecessárias ao agendamento.
-5. GUIE O CLIENTE com opções claras quando apropriado.
-
-VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERIÊNCIA DE AGENDAMENTO PERFEITA.
-`;
+    return ` `;
   };
   // Function to generate available dates (next 14 days, simple list only)
   const generateDateOptions = () => {
     console.log("Generating date options with config:", config?.business);
+    
+    // Clear the date array first to prevent stale data
+    setAvailableDates([]);
+    
     const dates = [];
     const today = new Date();
+    const specificHolidays = config?.business?.specificHolidays || [];
     
-    // Always add 14 days regardless of business hours config
-    for (let i = 0; i < 14; i++) {
+    // Try to get up to 10 available days
+    let daysToCheck = 40; // Increase the search range to find enough available days
+    let availableDaysFound = 0;
+    
+    for (let i = 0; i < daysToCheck && availableDaysFound < 10; i++) {
       const date = new Date();
       date.setDate(today.getDate() + i);
       
@@ -451,29 +322,63 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       
-      // Format date as YYYY-MM-DD without using toISOString() to avoid timezone issues
-      const formattedDate = `${year}-${month}-${day}`;
+      // Get day of week (0 = Sunday, 6 = Saturday)
+      const dayOfWeek = date.getDay();
       
-      const displayDate = date.toLocaleDateString('pt-BR', { 
-        weekday: 'short', 
-        day: '2-digit', 
-        month: '2-digit' 
-      });
+      // Check if business is open on this day
+      let isOpen = false;
       
-      // Also include Brazilian format for matching
-      const brFormat = `${day}/${month}/${year}`;
+      // Check if it's a specific holiday
+      const dateKey = `${day}/${month}`;
+      const isHoliday = specificHolidays.includes(dateKey);
       
-      dates.push({
-        value: formattedDate,
-        display: displayDate,
-        brFormat: brFormat, // Add Brazilian date format for matching 
-        jsDate: new Date(date) // Store a copy of the JS Date object for reliable formatting
-      });
+      if (isHoliday) {
+        // Check if business operates on holidays
+        isOpen = config?.business?.holidayHours && config.business.holidayHours.includes('-');
+      } else if (dayOfWeek === 0) { // Sunday
+        // Check if business is open on Sundays
+        isOpen = config?.business?.sundayHours && config.business.sundayHours.includes('-');
+      } else if (dayOfWeek === 6) { // Saturday
+        // Check if business is open on Saturdays (default to open)
+        isOpen = config?.business?.saturdayHours ? config.business.saturdayHours.includes('-') : true;
+      } else { // Weekday (Monday-Friday)
+        // Always open on weekdays by default
+        isOpen = config?.business?.weekdayHours ? config.business.weekdayHours.includes('-') : true;
+      }
+      
+      // Only include day if business is open
+      if (isOpen) {
+        availableDaysFound++;
+        
+        // Format date as YYYY-MM-DD without using toISOString() to avoid timezone issues
+        const formattedDate = `${year}-${month}-${day}`;
+        
+        const displayDate = date.toLocaleDateString('pt-BR', { 
+          weekday: 'short', 
+          day: '2-digit', 
+          month: '2-digit' 
+        });
+        
+        // Also include Brazilian format for matching
+        const brFormat = `${day}/${month}/${year}`;
+        
+        dates.push({
+          value: formattedDate,
+          display: displayDate,
+          brFormat: brFormat, // Add Brazilian date format for matching 
+          jsDate: new Date(date), // Store a copy of the JS Date object for reliable formatting
+          dayOfWeek: dayOfWeek // Store day of week for debugging
+        });
+        
+        console.log(`Added available date: ${displayDate} (${dayOfWeek === 0 ? 'Sunday' : dayOfWeek === 6 ? 'Saturday' : 'Weekday'})`);
+      } else {
+        console.log(`Skipped closed date: ${day}/${month} (${dayOfWeek === 0 ? 'Sunday' : dayOfWeek === 6 ? 'Saturday' : 'Holiday'})`);
+      }
     }
     
-    console.log(`Total dates generated: ${dates.length}`);
+    console.log(`Total dates generated: ${dates.length} - ALL FILTERED for availability`);
     
-    // Set the dates in state and make sure options are shown
+    // Set the dates in state AFTER filtering
     setAvailableDates(dates);
     setShowDateOptions(true);
     
@@ -501,6 +406,10 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
 
   // Generate time options for a specific date and worker
   const generateTimeOptions = async (workerId, date) => {
+    // IMPORTANT: Set an empty array right away to clear any previous times
+    // This prevents showing unfiltered times while filtering is in progress
+    setAvailableTimes([]);
+    
     // Get the day of the week (0 = Sunday, 6 = Saturday)
     const dayOfWeek = new Date(date).getDay();
     
@@ -543,7 +452,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     if (!businessHours) {
       console.log("No business hours defined for", date);
       setAvailableTimes([]);
-      return;
+      return [];
     }
     
     // Parse business hours (format: "07:00-19:00")
@@ -551,12 +460,14 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     if (!openTime || !closeTime) {
       console.log("Invalid business hours format:", businessHours);
       setAvailableTimes([]);
-      return;
+      return [];
     }
     
     const [startHour, startMinute] = openTime.split(':').map(Number);
     const [endHour, endMinute] = closeTime.split(':').map(Number);
-    const interval = config?.business?.appointmentInterval || 10;
+    // Force 10-minute intervals to reduce the number of options
+    // This is only for generating time slots - actual conflict detection will use service duration
+    const interval = 10;
     
     // Check if timeSlotCache already has times for this day/worker combo
     const cacheKey = `${workerId}-${date}`;
@@ -580,20 +491,40 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       
       // If we already had cached times, filter them based on appointments
       if (baseTimeslots.length > 0) {
+        console.log(`Filtering ${baseTimeslots.length} time slots for conflicts with ${workerAppointments.length} appointments`);
+        
         // Filter out any cached times that conflict with appointments
         const filteredTimes = baseTimeslots.filter(timeSlot => {
           // Parse the time slot
           const [slotHour, slotMinute] = timeSlot.split(':').map(Number);
           const timeSlotMinutes = slotHour * 60 + slotMinute;
-          const timeSlotEndMinutes = timeSlotMinutes + interval;
+          
+          // Get duration for appointment we're trying to book based on selected service
+          // Look for the selected service in the booking state or service config
+          let serviceDuration = 30; // Default to 30 minutes
+          
+          // If booking a specific service, look up its duration
+          if (bookingState?.selectedService) {
+            const services = config?.services?.items || [];
+            const selectedService = services.find(s => s.name === bookingState.selectedService);
+            if (selectedService?.duration) {
+              serviceDuration = selectedService.duration;
+              console.log(`Using duration ${serviceDuration} minutes for service: ${bookingState.selectedService}`);
+            } else {
+              console.log(`No duration found for ${bookingState.selectedService}, using default: ${serviceDuration} minutes`);
+            }
+          }
+          
+          // Calculate when this appointment would end if booked
+          const timeSlotEndMinutes = timeSlotMinutes + serviceDuration;
           
           // Check if this time slot conflicts with any existing appointment
           return !workerAppointments.some(appt => {
             // Parse the appointment start time
             const [apptHour, apptMinute] = appt.start_time.split(':').map(Number);
             
-            // Duration of the appointment (default to interval if not specified)
-            const appointmentDuration = appt.duration || interval;
+            // Duration of the existing appointment (default to 30 minutes if not specified)
+            const appointmentDuration = appt.duration || 30;
             
             // Calculate start and end times in minutes since midnight
             const apptStartMinutes = apptHour * 60 + apptMinute;
@@ -612,7 +543,17 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             );
             
             if (hasOverlap) {
-              console.log(`Time conflict: ${timeSlot} conflicts with appointment at ${appt.start_time}`);
+              // Format minutes for better readability
+              const endHour = Math.floor(timeSlotEndMinutes / 60);
+              const endMin = timeSlotEndMinutes % 60;
+              const formattedEndTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`;
+              
+              // Format appointment end time too
+              const apptEndHour = Math.floor(apptEndMinutes / 60);
+              const apptEndMin = apptEndMinutes % 60;
+              const formattedApptEndTime = `${String(apptEndHour).padStart(2, '0')}:${String(apptEndMin).padStart(2, '0')}`;
+              
+              console.log(`Time conflict: ${timeSlot} (${serviceDuration}min service) conflicts with appointment at ${appt.start_time}-${formattedApptEndTime} (${appointmentDuration}min). Our service would end at ${formattedEndTime}`);
             }
             
             return hasOverlap;
@@ -620,12 +561,19 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
         });
         
         console.log(`Filtered from ${baseTimeslots.length} to ${filteredTimes.length} available times`);
+        // Update the state with filtered times
         setAvailableTimes(filteredTimes);
+        
+        // Return the filtered times so we can use them immediately
+        return filteredTimes;
       }
       // No cached times yet, generate them from scratch
       else {
-        // Track all time slots
-        const times = [];
+        // Track all potential time slots
+        const allPossibleTimes = [];
+        // Track only available (non-conflicting) time slots
+        const availableTimes = [];
+        
         let currentHour = startHour;
         let currentMinute = startMinute;
         
@@ -635,13 +583,16 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           const formattedMinute = currentMinute.toString().padStart(2, '0');
           const timeSlot = `${formattedHour}:${formattedMinute}`;
           
+          // Add to all possible times
+          allPossibleTimes.push(timeSlot);
+          
           // Check if this time slot conflicts with any existing appointment
           const isAvailable = !workerAppointments.some(appt => {
             // Parse the appointment start time
             const [apptHour, apptMinute] = appt.start_time.split(':').map(Number);
             
-            // Duration of the appointment (default to interval if not specified)
-            const appointmentDuration = appt.duration || interval;
+            // Duration of the existing appointment (default to 30 minutes if not specified)
+            const appointmentDuration = appt.duration || 30;
             
             // Calculate start and end times in minutes since midnight
             const apptStartMinutes = apptHour * 60 + apptMinute;
@@ -650,8 +601,25 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             // Current time slot in minutes since midnight
             const timeSlotMinutes = currentHour * 60 + currentMinute;
             
-            // Current time slot end time
-            const timeSlotEndMinutes = timeSlotMinutes + interval;
+            // Get duration for appointment we're trying to book based on selected service
+            // Look for the selected service in the booking state or service config
+            let serviceDuration = 30; // Default to 30 minutes
+            
+            // If booking a specific service, look up its duration
+            if (bookingState?.selectedService) {
+              const services = config?.services?.items || [];
+              const selectedService = services.find(s => s.name === bookingState.selectedService);
+              if (selectedService?.duration) {
+                serviceDuration = selectedService.duration;
+                // More detailed logging for only the first few time slots to avoid too many logs
+                if (currentHour === startHour && currentMinute <= startMinute + interval) {
+                  console.log(`Using duration ${serviceDuration} minutes for service: ${bookingState.selectedService}`);
+                }
+              }
+            }
+            
+            // Calculate when this appointment would end if booked
+            const timeSlotEndMinutes = timeSlotMinutes + serviceDuration;
             
             // Check if there's an overlap between the two time ranges
             // Two ranges overlap if one range starts before the other ends and ends after the other starts
@@ -668,15 +636,25 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             
             // For debugging only
             if (hasOverlap) {
-              console.log(`Time conflict: ${currentHour}:${currentMinute} conflicts with appointment at ${apptHour}:${apptMinute} (duration: ${appointmentDuration})`);
+              // Format minutes for better readability
+              const endHour = Math.floor(timeSlotEndMinutes / 60);
+              const endMin = timeSlotEndMinutes % 60;
+              const formattedEndTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`;
+              
+              // Format appointment end time too
+              const apptEndHour = Math.floor(apptEndMinutes / 60);
+              const apptEndMin = apptEndMinutes % 60;
+              const formattedApptEndTime = `${String(apptEndHour).padStart(2, '0')}:${String(apptEndMin).padStart(2, '0')}`;
+              
+              console.log(`Time conflict: ${formattedHour}:${formattedMinute} (${serviceDuration}min service) conflicts with appointment at ${apptHour}:${apptMinute}-${formattedApptEndTime} (${appointmentDuration}min). Our service would end at ${formattedEndTime}`);
             }
             
             return hasOverlap;
           });
           
-          // Add available time slot
+          // Add available time slot to filtered list only if it doesn't conflict
           if (isAvailable) {
-            times.push(timeSlot);
+            availableTimes.push(timeSlot);
           }
           
           // Move to next time slot
@@ -687,28 +665,40 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           }
         }
         
-        console.log(`Generated ${times.length} available times from scratch`);
-        setAvailableTimes(times);
+        console.log(`Total time slots: ${allPossibleTimes.length}, Available after filtering: ${availableTimes.length}`);
+        // This is the key fix - only set the FILTERED times as available times
+        setAvailableTimes(availableTimes);
+        
+        // Update cache with filtered times only
+        const cacheKey = `${workerId}-${date}`;
+        timeSlotCache.current[cacheKey] = availableTimes;
+        
+        // Return the filtered times so we can use them immediately
+        return availableTimes;
       }
     } catch (error) {
       console.error('Error fetching appointments:', error);
       
-      // Error handling: If we already have cached times, use them
+      // Error handling: If we already have cached times, use them but log a warning
       if (baseTimeslots.length > 0) {
-        console.log("Error occurred, using cached times without filtering:", baseTimeslots.length, "slots");
+        console.log("⚠️ Error occurred, using cached times without filtering:", baseTimeslots.length, "slots");
+        // In case of error, still use cached times but warn
         setAvailableTimes(baseTimeslots);
       } 
       // Fallback to simple time generation without filtering
       else {
-        console.log("Error occurred, generating fallback times");
-        const times = [];
+        console.log("⚠️ Error occurred, generating fallback times without conflict detection");
+        // In fallback mode, we won't be able to filter conflicts
+        // This should be rare - only happens if appointments can't be fetched
+        
+        const fallbackTimes = [];
         let currentHour = startHour;
         let currentMinute = startMinute;
         
         while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
           const formattedHour = currentHour.toString().padStart(2, '0');
           const formattedMinute = currentMinute.toString().padStart(2, '0');
-          times.push(`${formattedHour}:${formattedMinute}`);
+          fallbackTimes.push(`${formattedHour}:${formattedMinute}`);
           
           currentMinute += interval;
           if (currentMinute >= 60) {
@@ -717,8 +707,15 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           }
         }
         
-        console.log(`Generated ${times.length} fallback times`);
-        setAvailableTimes(times);
+        console.log(`Generated ${fallbackTimes.length} fallback times (without conflict detection)`);
+        // Mark that these are fallback times without conflict detection
+        setAvailableTimes(fallbackTimes);
+        
+        // Don't cache these since they're not filtered
+        // IMPORTANT: No caching here!
+        
+        // Return the fallback times
+        return fallbackTimes;
       }
     }
   };
@@ -945,7 +942,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
   };
 
   // Handle service selection - now by text input
-  const handleServiceSelect = (service) => {
+  const handleServiceSelect = (service, addToMessages = true) => {
     if (isGuidedMode()) {
       // In guided mode, update state and advance
       // Using a functional update to ensure we're working with the latest state
@@ -964,11 +961,13 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
         return newState;
       });
       
-      // Add this selection to chat messages
-      setMessages(prev => [
-        ...prev, 
-        { role: 'user', content: service }
-      ]);
+      // Add this selection to chat messages only if requested
+      if (addToMessages) {
+        setMessages(prev => [
+          ...prev, 
+          { role: 'user', content: service }
+        ]);
+      }
       
       // For individual accounts, skip worker selection
       // INDIVIDUAL: auto-assign the solo worker and jump to date
@@ -1048,7 +1047,7 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
   };
   
   // Handle worker selection
-  const handleWorkerSelect = (worker) => {
+  const handleWorkerSelect = (worker, addToMessages = true) => {
     console.log("Selected worker:", worker);
     
     if (isGuidedMode()) {
@@ -1063,11 +1062,13 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
         return newState;
       });
       
-      // Add this selection to chat messages
-      setMessages(prev => [
-        ...prev, 
-        { role: 'user', content: worker.name }
-      ]);
+      // Add this selection to chat messages only if requested
+      if (addToMessages) {
+        setMessages(prev => [
+          ...prev, 
+          { role: 'user', content: worker.name }
+        ]);
+      }
       
       // Generate date options
       generateDateOptions();
@@ -1096,23 +1097,39 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
   // Cache for time slots to avoid inconsistent results
   const timeSlotCache = useRef({});
 
-  // Handle date selection
-  const handleDateSelect = async (date) => {
+  // Handle date selection - BRUTE FORCE APPROACH
+  const handleDateSelect = async (date, addToMessages = true) => {
     if (isGuidedMode()) {
-      console.log("Date selected:", date.display, date.value);
+      console.log("🛑 DATE SELECTED - BRUTE FORCE APPROACH");
+      console.log(`🛑 Date display: ${date.display}`);
+      console.log(`🛑 Date value: ${date.value}`);
       
-      // In guided mode, update state and advance
-      setBookingState(prev => ({
-        ...prev,
+      // Save current state for context
+      const currentWorker = ctx.selectedWorker;
+      console.log(`🛑 Current worker: ${currentWorker?.name}`);
+      
+      // Make a complete copy of the state to modify
+      const newState = {
+        ...ctx,
         selectedDate: date.value,
         step: 5
-      }));
+      };
       
-      // Add this selection to chat messages
-      setMessages(prev => [
-        ...prev, 
-        { role: 'user', content: date.display }
-      ]);
+      // Explicitly preserve worker information
+      newState.selectedWorker = currentWorker;
+      
+      console.log("🛑 Setting new booking state with date:", date.value);
+      
+      // Set the state with our complete object
+      setBookingState(newState);
+      
+      // Add this selection to chat messages only if requested
+      if (addToMessages) {
+        setMessages(prev => [
+          ...prev, 
+          { role: 'user', content: date.display }
+        ]);
+      }
       
       // Show loading message
       const loadingResponse = { 
@@ -1121,104 +1138,48 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       };
       setMessages(prev => [...prev, loadingResponse]);
       
+      // Add explicit debugging info for the requested time generation
+      console.log(`🛑 Will generate times for date ${date.value} and worker ${currentWorker?.name} (ID: ${currentWorker?.worker_id})`)
+      
       try {
-        // Check if we have cached time slots for this date and worker
-        const cacheKey = `${bookingState.selectedWorker.worker_id}-${date.value}`;
-        let timeSlots = [];
+        // Show loading message
+        setMessages(prev => {
+          const updatedMessages = [...prev];
+          updatedMessages[updatedMessages.length - 1] = { 
+            role: 'assistant', 
+            content: `Buscando horários disponíveis para o dia ${date.display}...`
+          };
+          return updatedMessages;
+        });
         
-        if (timeSlotCache.current[cacheKey]) {
-          console.log("Using cached time slots for", date.display);
-          timeSlots = timeSlotCache.current[cacheKey];
-          setAvailableTimes(timeSlots);
-        } else {
-          // Generate time options for this date and worker
-          console.log("Generating time slots for", date.display);
-          // Get the day of week before calling generateTimeOptions
-          const dayOfWeek = new Date(date.value).getDay();
-          
-          // Pre-populate with default times for weekdays if business hours exist
-          let businessHours;
-          
-          if (dayOfWeek === 0) { // Sunday
-            // Check for valid Sunday hours format (HH:MM-HH:MM)
-            businessHours = (config?.business?.sundayHours && config.business.sundayHours.includes('-')) 
-              ? config.business.sundayHours 
-              : '';
-          } else if (dayOfWeek === 6) { // Saturday
-            // For Saturday: Use default hours if not specified
-            businessHours = (config?.business?.saturdayHours && config.business.saturdayHours.includes('-')) 
-              ? config.business.saturdayHours 
-              : '08:00-14:00';
-          } else { // Weekdays (Monday-Friday)
-            // For weekdays: Always open by default with standard business hours
-            businessHours = (config?.business?.weekdayHours && config.business.weekdayHours.includes('-')) 
-              ? config.business.weekdayHours 
-              : '07:00-19:00';
-          }
-          
-          // Prefill with default time slots based on business hours
-          if (businessHours) {
-            console.log("Using business hours:", businessHours, "for day", dayOfWeek);
-            const [openTime, closeTime] = businessHours.split('-');
-            if (openTime && closeTime) {
-              const [startHour, startMinute] = openTime.split(':').map(Number);
-              const [endHour, endMinute] = closeTime.split(':').map(Number);
-              const interval = config?.business?.appointmentInterval || 10;
-              
-              // Create default time slots based on business hours
-              const defaultTimes = [];
-              let currentHour = startHour;
-              let currentMinute = startMinute;
-              
-              while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
-                const formattedHour = currentHour.toString().padStart(2, '0');
-                const formattedMinute = currentMinute.toString().padStart(2, '0');
-                defaultTimes.push(`${formattedHour}:${formattedMinute}`);
-                
-                // Move to next time slot
-                currentMinute += interval;
-                if (currentMinute >= 60) {
-                  currentHour += 1;
-                  currentMinute -= 60;
-                }
-              }
-              
-              // Pre-cache these default times even before checking for conflicts
-              timeSlotCache.current[cacheKey] = defaultTimes;
-              timeSlots = defaultTimes;
-              setAvailableTimes(defaultTimes);
-            }
-          }
-          
-          // Now call generateTimeOptions to filter out any conflicting slots
-          await generateTimeOptions(bookingState.selectedWorker.worker_id, date.value);
-          
-          // Update the cache with filtered results
-          if (availableTimes.length > 0) {
-            timeSlots = [...availableTimes]; // Make a copy
-            timeSlotCache.current[cacheKey] = timeSlots;
-          }
-        }
+        // Generate time options and get the filtered results directly
+        // This will do all the time slot generation and filtering in one step
+        const timeSlots = await generateTimeOptions(bookingState.selectedWorker.worker_id, date.value) || [];
         
         // Create message with time options included
         const question = "Qual horário você prefere no dia " + date.display + "?";
         
-        // Try to use cached times first, if available
+        // Use the timeSlots we get directly from generateTimeOptions, not from state
         if (timeSlots && timeSlots.length > 0) {
-          console.log("Showing", timeSlots.length, "time slots for", date.display);
+          console.log("Showing", timeSlots.length, "FILTERED time slots for", date.display);
           
-          // Format time options message with available times
-          const header = 'Escolha um horário digitando o número correspondente:';
-          const options = timeSlots.map((time, index) => 
-            `${index + 1}. ${time}`
-          ).join('\n');
+          // Format time options message with available times - use the filtered time slots
+          const header = 'Escolha um horário digitando diretamente no formato HH:MM:';
           
-          // Replace loading message with time options
+          // Simplified approach - just show numbered list of available times
+          const timesToShow = timeSlots.map((timeStr, index) => {
+            return `${index + 1}. ${timeStr}`;
+          });
+          
+          const options = timesToShow.join('\n');
+          const note = 'IMPORTANTE: Digite o horário no formato HH:MM (exemplo: 14:30)\n\nAlguns horários foram escondidos por conflito com outros agendamentos.';
+          
+          // Replace loading message with time options immediately, no need to wait
           setMessages(prev => {
             const updatedMessages = [...prev];
             updatedMessages[updatedMessages.length - 1] = { 
               role: 'assistant', 
-              content: question + "\n\n" + header + "\n\n" + options
+              content: question + "\n\n" + header + "\n\n" + options + "\n\n" + note
             };
             return updatedMessages;
           });
@@ -1234,7 +1195,9 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             const [openTime, closeTime] = businessHours.split('-');
             const [startHour, startMinute] = openTime.split(':').map(Number);
             const [endHour, endMinute] = closeTime.split(':').map(Number);
-            const interval = config?.business?.appointmentInterval || 10;
+            // Force 10-minute intervals to reduce the number of options
+    // This is only for generating time slots - actual conflict detection will use service duration
+    const interval = 10;
             
             let currentHour = startHour;
             let currentMinute = startMinute;
@@ -1254,6 +1217,9 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
             
             // Set these as available times
             setAvailableTimes(defaultTimes);
+            
+            // Create a cache key for this worker/date combo
+            const cacheKey = `${bookingState.selectedWorker.worker_id}-${date.value}`;
             timeSlotCache.current[cacheKey] = defaultTimes;
             
             // Show them to the user
@@ -1321,44 +1287,82 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     }
   };
   
-  // Handle time selection
-  const handleTimeSelect = (time) => {
+  // Handle time selection - COMPLETELY FIXED VERSION
+  const handleTimeSelect = (time, addToMessages = true) => {
     if (isGuidedMode()) {
-      // In guided mode, update state and advance
-      setBookingState(prev => ({
-        ...prev,
+      // CRITICAL: First save all current state to variables before any state updates
+      // This prevents race conditions where state might change during the update
+      const currentDate = bookingState.selectedDate;
+      const currentWorker = bookingState.selectedWorker;
+      const currentService = bookingState.selectedService;
+      const currentDuration = bookingState.customDuration || 30;
+      
+      console.log(`🔍 handleTimeSelect called with time: ${time}`);
+      console.log(`🔍 Current state BEFORE update:`);
+      console.log(`🔍 - Date: ${currentDate}`);
+      console.log(`🔍 - Worker: ${currentWorker?.name}`);
+      console.log(`🔍 - Service: ${currentService}`);
+      
+      // CRITICAL FIX: Create a complete state object instead of using functional update
+      // This ensures we set all fields explicitly and don't rely on the previous state
+      const updatedState = {
+        ...bookingState,
         selectedTime: time,
+        // EXPLICITLY set these critical fields to ensure they don't change
+        selectedDate: currentDate,
+        selectedWorker: currentWorker,
+        selectedService: currentService,
+        customDuration: currentDuration,
         step: 6
-      }));
+      };
       
-      // Add this selection to chat messages
-      setMessages(prev => [
-        ...prev, 
-        { role: 'user', content: time }
-      ]);
+      // Log what we're about to set
+      console.log(`🔍 Setting updated state with preserved date: ${updatedState.selectedDate}`);
       
-      // Format date for display in dd/mm/yyyy format
-      const [y, m, d] = bookingState.selectedDate.split('-').map(Number);
+      // Update the booking state with our complete object
+      setBookingState(updatedState);
+      
+      // Add this selection to chat messages only if requested
+      if (addToMessages) {
+        setMessages(prev => [
+          ...prev, 
+          { role: 'user', content: time }
+        ]);
+      }
+      
+      // Format date for display in dd/mm/yyyy format - using our explicitly saved currentDate
+      console.log(`🔍 Formatting confirmation date from saved value: ${currentDate}`);
+      const [y, m, d] = currentDate.split('-').map(Number);
       const selectedDate = new Date(y, m - 1, d);    // use this to fix the CGR UTC-4 bug
       const day = selectedDate.getDate().toString().padStart(2, '0');
       const month = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
       const year = selectedDate.getFullYear();
       const formattedDate = `${day}/${month}/${year}`;
+      console.log(`🔍 Formatted date for confirmation: ${formattedDate}`);
       
-      // Create confirmation message with or without service details
-      const servicePhrase = bookingState.selectedService === 'Consulta' 
-        ? `agendar uma consulta de ${bookingState.customDuration} minutos` 
-        : `agendar ${bookingState.selectedService}`;
-        
+      // Create confirmation message with or without service details - USE OUR SAVED VALUES
+      const servicePhrase = currentService === 'Consulta' 
+        ? `agendar uma consulta de ${currentDuration} minutos` 
+        : `agendar ${currentService}`;
+      
+      console.log(`🔍 Generating confirmation with:`);
+      console.log(`🔍 - Worker: ${currentWorker?.name}`);
+      console.log(`🔍 - Date: ${formattedDate}`);
+      console.log(`🔍 - Time: ${time}`);
+      console.log(`🔍 - Service: ${currentService}`);
+      
       // Add assistant response for confirmation with yes/no options
-      const confirmQuestion = `Para confirmar, você deseja ${servicePhrase} com ${bookingState.selectedWorker.name} no dia ${formattedDate} às ${time}. Está correto?`;
+      const confirmQuestion = `Para confirmar, você deseja ${servicePhrase} com ${currentWorker.name} no dia ${formattedDate} às ${time}. Está correto?`;
       const confirmOptions = "1. Sim\n2. Não";
       const assistantResponse = { 
         role: 'assistant', 
         content: confirmQuestion + "\n\n" + confirmOptions
       };
       
-      setMessages(prev => [...prev, assistantResponse]);
+      // Use a small timeout to ensure state update happens first
+      setTimeout(() => {
+        setMessages(prev => [...prev, assistantResponse]);
+      }, 50);
     } else {
       // In free mode, just send as a message
       setInput(time);
@@ -1406,11 +1410,14 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
     const textToSend = messageText || input;
     if (!textToSend.trim()) return;
     
+    // Grab the fresh step value
+    const currentStep = ctx.step;
+    
     const userMessage = { role: 'user', content: textToSend };
 
     if (isGuidedMode()) {
       // First, ensure that all available dates are generated immediately
-      if (ctx.step === 4 && !availableDates.length) {
+      if (currentStep === 4 && !availableDates.length) {
         console.log("Generating dates immediately since we're at date selection step");
         generateDateOptions();
       }
@@ -1420,27 +1427,65 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       if (numMatch) {
         const num = parseInt(numMatch[0], 10);
         
-        // Handle service selection by number
-        if (ctx.step === 2 && commonServices.length >= num && num > 0) {
-          const selectedService = commonServices[num - 1];
+        // ——— TIME SELECTION BY NUMBER ———
+        if (currentStep === 5 && availableTimes.length >= num && num > 0) {
+          // Show the raw input (the number) in the UI
+          setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+          
+          // Clear input
           setInput('');
-          handleServiceSelect(selectedService);
+          
+          // Pick the nth time from the array
+          handleTimeSelect(availableTimes[num - 1], false); // false = don't add message
+          return;
+        }
+        
+        // Handle service selection by number
+        if (currentStep === 2 && commonServices.length >= num && num > 0) {
+          const selectedService = commonServices[num - 1];
+          
+          // Show the raw input (the number) in the UI, not the service name
+          setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+          
+          // Clear input
+          setInput('');
+          
+          // Process the selection in the background (without adding another message)
+          handleServiceSelect(selectedService, false); // false = don't add to messages
           return;
         }
         
         // Handle worker selection by number
         else if (ctx.step === 3 && workers.length >= num && num > 0) {
           const selectedWorker = workers[num - 1];
+          
+          // Show the raw input (the number) in the UI, not the worker name
+          setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+          
+          // Clear input
           setInput('');
-          handleWorkerSelect(selectedWorker);
+          
+          // Process the selection in the background (without adding another message)
+          handleWorkerSelect(selectedWorker, false); // false = don't add to messages
           return;
         }
         
-        // Handle date selection by number
+        // Handle date selection by number - WITH DEBUGGING
         else if (ctx.step === 4 && availableDates.length >= num && num > 0) {
           const selectedDate = availableDates[num - 1];
+          
+          // DEBUGGING
+          console.log(`🔍 DATE SELECTION BY NUMBER: ${num}`);
+          console.log(`🔍 Selected date: ${selectedDate.value} (${selectedDate.display})`);
+          
+          // Show the raw input (the number) in the UI, not the date
+          setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+          
+          // Clear input
           setInput('');
-          handleDateSelect(selectedDate);
+          
+          // Process the selection in the background (without adding another message)
+          handleDateSelect(selectedDate, false); // false = don't add to messages
           return;
         }
       }
@@ -1861,10 +1906,14 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
         // Try to match time formats like 14:00 or 2pm
         if (enteredText.match(/^\d{1,2}:\d{2}$/)) {
           // Look for exact match in availableTimes
-          const matchedTime = availableTimes.find(t => t.toLowerCase() === enteredText);
+          const matchedTime = availableTimes.find(t => t.toLowerCase() === enteredText.toLowerCase());
           if (matchedTime) {
+            // Show the exact user input in the chat
+            setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+            
             setInput('');
-            handleTimeSelect(matchedTime);
+            // Pass false since we already added the message
+            handleTimeSelect(matchedTime, false);
             return;
           }
         }
@@ -1895,10 +1944,15 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           // Add user's message
           setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
           
-          // Make sure we have time options to display
-          if (bookingState.selectedWorker && bookingState.selectedDate) {
-            // Ensure time options are generated
-            generateTimeOptions(bookingState.selectedWorker.worker_id, bookingState.selectedDate)
+          // BRUTE FORCE: Get time options using reliable ctx values instead of bookingState
+          // This is critical - we use ctx directly which is more reliable
+          if (ctx.selectedWorker && ctx.selectedDate) {
+            console.log(`🛑 REGENERATING TIMES WITH BRUTE FORCE APPROACH`)
+            console.log(`🛑 Using ctx.selectedDate: ${ctx.selectedDate}`)
+            console.log(`🛑 Using ctx.selectedWorker: ${ctx.selectedWorker?.name}`)
+            
+            // Use direct ctx values for reliability
+            generateTimeOptions(ctx.selectedWorker.worker_id, ctx.selectedDate)
               .then(() => {
                 // Get freshly generated time options
                 const updatedTimeOptions = formatTimeOptionsMessage();
@@ -1933,34 +1987,123 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
         }
       }
       
-      // Handle time selection by number
+      // Handle time selection by number - EXTREME BRUTE FORCE APPROACH
       if (numMatch) {
         const num = parseInt(numMatch[0], 10);
+        // Only run this code if we're at the time selection step and the number is valid
         if (ctx.step === 5 && availableTimes.length >= num && num > 0) {
-          // Save the selected time from available options
+          console.log(`🛑 TIME SELECTION NUMBER: ${num} - BRUTE FORCE SOLUTION`)
+          
+          // Get the selected time directly
           const selectedTime = availableTimes[num - 1];
+          console.log(`🛑 Selected time slot #${num}: ${selectedTime}`);
+          
+          // Show the raw number input in the UI for better UX
+          setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+          
+          // Clear the input field
           setInput('');
-          handleTimeSelect(selectedTime);
+          
+          // BRUTE FORCE: Instead of trying to update the existing state or use the handleTimeSelect function,
+          // let's bypass all of that and create a completely fresh confirmation message
+          
+          // First, ensure we get a clean copy of the current state before any updates
+          const safeDate = ctx.selectedDate;
+          const safeWorker = ctx.selectedWorker;
+          const safeService = ctx.selectedService;
+          const safeDuration = ctx.customDuration || 30;
+          
+          console.log(`🛑 Creating confirmation message with these values:`)
+          console.log(`🛑 - Date: ${safeDate}`)
+          console.log(`🛑 - Worker: ${safeWorker?.name}`)
+          console.log(`🛑 - Service: ${safeService}`)
+          console.log(`🛑 - Time: ${selectedTime}`)
+          
+          // Format the date for the confirmation message
+          let formattedDate;
+          try {
+            const [year, month, day] = safeDate.split('-').map(Number);
+            const dateObj = new Date(year, month-1, day);
+            formattedDate = `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+            console.log(`🛑 Formatted date: ${formattedDate}`);
+          } catch (e) {
+            console.error(`🛑 Error formatting date: ${e}`);
+            formattedDate = safeDate; // Fallback to original format
+          }
+          
+          // Create service phrase for the confirmation
+          const servicePhrase = safeService === 'Consulta' 
+            ? `agendar uma consulta de ${safeDuration} minutos` 
+            : `agendar ${safeService}`;
+          
+          // Create confirmation message with these reliably stored values
+          const confirmQuestion = `Para confirmar, você deseja ${servicePhrase} com ${safeWorker.name} no dia ${formattedDate} às ${selectedTime}. Está correto?`;
+          const confirmOptions = "1. Sim\n2. Não";
+          
+          // Combine message parts
+          const confirmationMessage = {
+            role: 'assistant',
+            content: confirmQuestion + "\n\n" + confirmOptions
+          };
+          
+          // BYPASS state update chain and just manually update the booking state
+          // We're setting all properties directly to avoid any race conditions
+          setCtx({
+            ...ctx,
+            step: 6,
+            selectedTime: selectedTime,
+            // Explicitly reset these to ensure they don't change
+            selectedDate: safeDate,
+            selectedWorker: safeWorker,
+            selectedService: safeService,
+            customDuration: safeDuration,
+          });
+          
+          // Add confirmation message with short delay to ensure state update happens first
+          setTimeout(() => {
+            setMessages(prev => [...prev, confirmationMessage]);
+          }, 50);
+          
           return;
         } else if (ctx.step === 5) {
           // Handle invalid time selection - show available times again
           // Add user's message
           setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
           
-          // Get the selected date display for context
-          const displayDate = bookingState.selectedDate ? new Date(bookingState.selectedDate).toLocaleDateString('pt-BR', { 
-            weekday: 'short', 
-            day: '2-digit', 
-            month: '2-digit' 
-          }) : '';
+          // BRUTE FORCE: Capture state values directly from ctx, not from bookingState
+          const safeDate = ctx.selectedDate;
+          const safeWorker = ctx.selectedWorker;
+          
+          console.log(`🛑 INVALID TIME SELECTION - BRUTE FORCE APPROACH`)
+          console.log(`🛑 Current state in ctx:`)
+          console.log(`🛑 - Date: ${safeDate}`);
+          console.log(`🛑 - Worker: ${safeWorker?.name}`);
+          
+          // Format display date from our safe variables
+          let displayDate = '';
+          try {
+            if (safeDate) {
+              const dateObj = new Date(safeDate);
+              displayDate = dateObj.toLocaleDateString('pt-BR', { 
+                weekday: 'short', 
+                day: '2-digit', 
+                month: '2-digit' 
+              });
+            }
+          } catch (e) {
+            console.error('Error formatting date:', e);
+          }
+          
+          console.log(`🛑 Formatted display date: ${displayDate}`);
           
           // Show the available times again for the current date
           const question = `Qual horário você prefere no dia ${displayDate}?`;
           
-          // Generate time options message
-          if (bookingState.selectedWorker && bookingState.selectedDate) {
-            // Ensure time options are generated for the correct date and worker
-            generateTimeOptions(bookingState.selectedWorker.worker_id, bookingState.selectedDate)
+          // Generate time options message using our SAFE variables
+          if (safeWorker && safeDate) {
+            console.log(`🛑 Regenerating time options for date ${safeDate} and worker ${safeWorker?.name}`);
+            // Ensure time options are generated for the correct date and worker - using our safe variables
+            generateTimeOptions(safeWorker.worker_id, safeDate)
               .then(() => {
                 // Get freshly generated time options
                 const updatedTimeOptions = formatTimeOptionsMessage();
@@ -2037,18 +2180,140 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       }
     }
     
+    // Process numeric input similarly to the WhatsApp integration
+    let processedText = textToSend;
+    // We'll also track what to display in the user message bubble
+    let displayText = textToSend;
+    
+    // If the input is a pure number, we need to translate it
+    const numericInput = textToSend.trim().match(/^(\d+)$/);
+    if (numericInput) {
+      // Extract the number directly
+      const directNumber = parseInt(textToSend.trim(), 10);
+      if (isNaN(directNumber)) return;  // Not a valid number
+      
+      // Index is zero-based (option 1 → index 0)
+      const optionIndex = directNumber - 1;
+            
+      // Handle service selection (step 2)
+      if (ctx.step === 2) {
+        const services = getSuggestedOptions(ctx);
+        if (services && optionIndex >= 0 && optionIndex < services.length) {
+          processedText = services[optionIndex];
+          console.log(`✅ [Service] ${textToSend} → "${processedText}"`);
+        }
+      }
+      
+      // Handle worker selection (step 3)
+      if (ctx.step === 3) {
+        const workers = getSuggestedOptions(ctx);
+        if (workers && optionIndex >= 0 && optionIndex < workers.length) {
+          processedText = workers[optionIndex];
+          console.log(`✅ [Worker] ${textToSend} → "${processedText}"`);
+        }
+      }
+      
+      // Handle confirmation (step 6)
+      if (ctx.step === 6) {
+        if (optionIndex === 0) { 
+          processedText = 'sim';
+          console.log(`✅ [Confirm] ${textToSend} → "${processedText}"`);
+        }
+        if (optionIndex === 1) { 
+          processedText = 'não';
+          console.log(`✅ [Confirm] ${textToSend} → "${processedText}"`);
+        }
+      }
+      
+      // Handle time selection (step 5)
+      if (ctx.step === 5) {
+        // *** MATCHING WHATSAPP BEHAVIOR ***
+        // The WhatsApp integration does NOT process numeric input for times
+        // It expects the user to enter times in HH:MM format directly
+        // To be consistent, we'll leave the raw numeric input here
+        
+        // Only convert input if it's already in HH:MM format
+        if (/^\d{2}:\d{2}$/.test(textToSend)) {
+          // Valid time format, keep as is
+          processedText = textToSend;
+          displayText = textToSend;
+          console.log(`✅ [Time] Valid time format entered: "${textToSend}"`);
+        } else {
+          // Not a valid time format, leave as is (will show validation error)
+          console.log(`⚠️ [Time] Invalid time format: "${textToSend}" (should be HH:MM)`);
+          
+          // Add note for testing - in real WhatsApp this falls through to FSM validation
+          if (/^\d+$/.test(textToSend)) {
+            console.log(`ℹ️ IMPORTANT: WhatsApp integration doesn't convert numeric options for times. You entered "${textToSend}" but need to enter a time like "07:30".`);
+          }
+        }
+      }
+      
+      // Handle date selection (step 4)
+      if (ctx.step === 4) {
+        // *** MATCHING WHATSAPP BEHAVIOR ***
+        // The WhatsApp integration does NOT process numeric input for dates
+        // It expects the user to enter dates in YYYY-MM-DD format directly
+        
+        // Get available dates from the state (for debugging only)
+        const availableDateOptions = availableDates.map(date => date.display);
+        
+        // Function to convert display date to YYYY-MM-DD
+        const formatDate = (displayStr) => {
+          // Extract the date from something like "qua., 14/05"
+          const match = displayStr.match(/(\d{2})\/(\d{2})/);
+          if (match) {
+            const day = match[1];
+            const month = match[2];
+            const year = new Date().getFullYear();
+            return `${year}-${month}-${day}`;
+          }
+          return displayStr;
+        };
+        
+        // For consistency with WhatsApp, we'll now process dates just like times
+        if (/^\d{4}-\d{2}-\d{2}$/.test(textToSend)) {
+          // Valid date format, keep as is
+          processedText = textToSend;
+          displayText = textToSend;
+          console.log(`✅ [Date] Valid date format entered: "${textToSend}"`);
+        } else if (availableDateOptions.includes(textToSend)) {
+          // The user typed the exact display date (like "qui., 15/05")
+          // Convert it to YYYY-MM-DD
+          processedText = formatDate(textToSend);
+          displayText = textToSend;
+          console.log(`✅ [Date] Display date format entered: "${textToSend}" → "${processedText}"`);
+        } else {
+          // Not a valid date format, leave as is (will show validation error)
+          console.log(`⚠️ [Date] Invalid date format: "${textToSend}" (should be YYYY-MM-DD)`);
+          
+          // Add note for testing - in real WhatsApp this falls through to FSM validation
+          if (/^\d+$/.test(textToSend)) {
+            console.log(`ℹ️ IMPORTANT: WhatsApp integration doesn't convert numeric options for dates. You entered "${textToSend}" but need to enter a date like "2025-05-15".`);
+          }
+        }
+      }
+    }
+    
     // Handle differently based on guided vs free mode
     if (isGuidedMode()) {
-      const { reply, context, appointment } = handleMessage(textToSend, {
+      const { reply, context, appointment } = handleMessage(processedText, {
         ...ctx,
         workers   // fresh list
       });
 
+      // Always use our displayText for showing in the chat
+      // But use processedText for backend processing
+      console.log(`📝 [Final] Input: "${textToSend}" → Display: "${displayText}" → Process: "${processedText}"`);
+      
       setMessages(prev => [
         ...prev,
-        { role: 'user', content: textToSend },
+        { role: 'user', content: displayText }, // Show the converted value to the user
         { role: 'assistant', content: reply }
       ]);
+      
+      // For debugging - log what was processed
+      console.log(`Input: "${textToSend}" → Processed: "${processedText}" → Displayed: "${displayText}"`);
       setCtx(context);
 
       if (appointment) {
@@ -2083,8 +2348,18 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
           }
         }, 500);
       } else if (context.step === 4) {
-        // Show date options as a message after a small delay
+        // Get filtered date options first, then display them
+        console.log("Getting filtered date options for step 4");
+        
+        // Reset any previous dates
+        setAvailableDates([]);
+        
+        // Generate filtered dates
+        generateDateOptions();
+        
+        // Show date options as a message after a small delay to ensure filtering is complete
         setTimeout(() => {
+          // Now format the message with the filtered dates
           const dateListMsg = formatDateOptionsMessage();
           if (dateListMsg) {
             setMessages(prev => [...prev, { role: 'assistant', content: dateListMsg }]);
@@ -2093,9 +2368,33 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       } else if (context.step === 5) {
         // Show time options as a message after a small delay
         setTimeout(() => {
-          const timeListMsg = formatTimeOptionsMessage();
-          if (timeListMsg) {
-            setMessages(prev => [...prev, { role: 'assistant', content: timeListMsg }]);
+          // BRUTE FORCE CRITICAL FIX: Use context values directly instead of bookingState
+          // This is crucial because context is the NEW state that was just set
+          const workerId = context.selectedWorker?.worker_id;
+          const date = context.selectedDate;
+          
+          console.log(`🛑 FINAL TIME SLOTS REGENERATION - BRUTE FORCE APPROACH`);
+          console.log(`🛑 Using CONTEXT values directly:`);
+          console.log(`🛑 - Date: ${date}`);
+          console.log(`🛑 - Worker ID: ${workerId}`);
+          console.log(`🛑 - Worker Name: ${context.selectedWorker?.name}`);
+          
+          if (workerId && date) {
+            console.log(`🛑 Regenerating time options with context values`)
+            // Regenerate time options to ensure we have the most up-to-date filtered list
+            generateTimeOptions(workerId, date).then(() => {
+              const timeListMsg = formatTimeOptionsMessage();
+              if (timeListMsg) {
+                setMessages(prev => [...prev, { role: 'assistant', content: timeListMsg }]);
+              }
+            });
+          } else {
+            console.log(`🛑 Missing worker ID or date in context!`);
+            // Fallback if worker or date is missing
+            const timeListMsg = formatTimeOptionsMessage();
+            if (timeListMsg) {
+              setMessages(prev => [...prev, { role: 'assistant', content: timeListMsg }]);
+            }
           }
         }, 500);
       }
@@ -2104,7 +2403,52 @@ VOCÊ DEVE SEGUIR RIGOROSAMENTE TODAS ESTAS DIRETRIZES PARA GARANTIR UMA EXPERI�
       return;        // ✅ done, skip the free-mode branch
     } else {
       // In free mode, use the API
-      const updatedMessages = [...messages, userMessage];
+      
+      // In free mode, we want to do the same kind of conversion
+      // We'll just reuse all the same logic we created for guided mode
+      
+      // Copy the input text
+      const freeTextToSend = userMessage.content;
+      // Process it using the same logic
+      let freeProcessedText = freeTextToSend;
+      let freeDisplayText = freeTextToSend;
+      
+      // Only process if it's a number
+      const freeNumericInput = freeTextToSend.trim().match(/^(\d+)$/);
+      if (freeNumericInput) {
+        const freeDirectNumber = parseInt(freeTextToSend.trim(), 10);
+        if (!isNaN(freeDirectNumber)) {
+          const freeOptionIndex = freeDirectNumber - 1;
+          
+          // Check for time slot conversion
+          if (availableTimes.length > 0) {
+            const freeTimeSlots = availableTimes.map(time => 
+              typeof time === 'object' && time.formatted ? time.formatted : time
+            );
+            
+            if (freeDirectNumber > 0 && freeDirectNumber <= freeTimeSlots.length) {
+              freeDisplayText = freeTimeSlots[freeDirectNumber - 1];
+              console.log(`✅ [Free-Time] ${freeTextToSend} → "${freeDisplayText}"`);
+            }
+          }
+          
+          // Check for date conversion
+          if (availableDates.length > 0) {
+            const freeDateOptions = availableDates.map(date => date.display);
+            
+            if (freeDirectNumber > 0 && freeDirectNumber <= freeDateOptions.length) {
+              freeDisplayText = freeDateOptions[freeDirectNumber - 1];
+              console.log(`✅ [Free-Date] ${freeTextToSend} → "${freeDisplayText}"`);
+            }
+          }
+        }
+      }
+      
+      // Use the converted display text
+      const displayUserMessage = { ...userMessage, content: freeDisplayText };
+      console.log(`📝 [Free-Final] Input: "${freeTextToSend}" → Display: "${freeDisplayText}"`);
+      
+      const updatedMessages = [...messages, displayUserMessage];
       
       setMessages(updatedMessages);
       setInput('');

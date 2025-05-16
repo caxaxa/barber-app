@@ -6,6 +6,7 @@ import {
   processNumericInput, 
   ContextManager 
 } from './numbered-options.js';
+import { checkNumberFilter, getBlockReasonMessage } from '../../shared/utils/whatsappFilters.js';
 
 // Environment variables
 const EVO_BASE = process.env.EVO_BASE_URL;
@@ -35,51 +36,7 @@ export const handler = async (event) => {
     const publicApiHeaders = { 'x-api-key': PUBLIC_KEY };
     const evolutionApiHeaders = { 'apiKey': EVO_KEY };
     
-    // Helper function to check if a number should be allowed based on whitelist/blacklist
-    const checkNumberFilter = (number, whatsappConfig) => {
-      // If WhatsApp integration is not enabled or config is missing, allow all
-      if (!whatsappConfig?.enabled) return true;
-      
-      // Check if it's a group message
-      const isGroup = number.includes('@g.us');
-      if (isGroup && whatsappConfig.disableGroups) {
-        console.log(`Blocking message from group chat: ${number}`);
-        return { allowed: false, reason: 'group' };
-      }
-      
-      // Apply number filtering based on whitelist/blacklist
-      const filterMode = whatsappConfig.filterMode || 'whitelist';
-      const filterNumbers = whatsappConfig.filterNumbers || [];
-      
-      // Check if filtering should be applied
-      if (filterNumbers.length > 0) {
-        // Normalize phone number for comparison
-        const normalizedNumber = number.replace(/[^0-9+]/g, '');
-        
-        // Check if the number is in the filter list
-        const isInList = filterNumbers.some(num => {
-          const normalizedFilterNumber = num.replace(/[^0-9+]/g, '');
-          return normalizedNumber.includes(normalizedFilterNumber) || 
-                normalizedFilterNumber.includes(normalizedNumber);
-        });
-        
-        // For whitelist: block if NOT in list
-        // For blacklist: block if IN list
-        const shouldBlock = (filterMode === 'whitelist') ? !isInList : isInList;
-        
-        if (shouldBlock) {
-          console.log(`Blocking message from ${number} based on ${filterMode} configuration`);
-          return { allowed: false, reason: filterMode };
-        }
-      } else if (filterMode === 'whitelist' && filterNumbers.length === 0) {
-        // Empty whitelist means block all (unless it's just not configured)
-        console.log(`Blocking message from ${number} - empty whitelist`);
-        return { allowed: false, reason: 'emptyWhitelist' };
-      }
-      
-      console.log(`Message from ${number} allowed by ${filterMode} filter check`);
-      return { allowed: true };
-    };
+    // The shared utility is now imported at the top of the file
     
     // Get shop config first to check filtering
     let shopConfig;

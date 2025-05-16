@@ -47,7 +47,8 @@ export function generateTimeSlots(config, date) {
   const closeHours = config?.business?.closeHours || '18:00';
   const lastAppointmentTime = config?.business?.lastAppointmentTime || '17:00';
   const appointmentDuration = config?.business?.appointmentDuration || 30;
-  const appointmentInterval = config?.business?.appointmentInterval || 15;
+  // Use the chatbot timeInterval if available, otherwise fallback to business appointmentInterval
+  const appointmentInterval = config?.chatbot?.timeInterval || config?.business?.appointmentInterval || 15;
   
   // Parse start and end times
   const [startHour, startMinute] = openHours.split(':').map(Number);
@@ -58,13 +59,15 @@ export function generateTimeSlots(config, date) {
   currentTime.setHours(startHour, startMinute, 0, 0);
   
   // Create time slots at intervals until last appointment time
-  while (true) {
+  let reachedEndTime = false;
+  while (!reachedEndTime) {
     const timeStr = currentTime.getHours().toString().padStart(2, '0') + 
                     ':' + 
                     currentTime.getMinutes().toString().padStart(2, '0');
     
     // Check if we've passed the last appointment time
-    if (!isWithinBusinessHours(timeStr, openHours, lastAppointmentTime)) {
+    reachedEndTime = !isWithinBusinessHours(timeStr, openHours, lastAppointmentTime);
+    if (reachedEndTime) {
       break;
     }
     

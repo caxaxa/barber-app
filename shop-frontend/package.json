@@ -45,7 +45,10 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "test:chatbot": "react-scripts test --testMatch='**/src/components/chat/**/*.test.js'",
+    "test:utils": "react-scripts test --testMatch='**/src/components/chat/utils/**/*.test.js'",
+    "test:fixes": "react-scripts test --testMatch='**/src/components/chat/__tests__/ChatbotFixesTest.js'"
   },
   "eslintConfig": {
     "extends": [

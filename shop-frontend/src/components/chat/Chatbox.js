@@ -241,7 +241,27 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     
     // Check if availableTimes is defined and has elements
     if (!times || !Array.isArray(times) || times.length === 0) {
-      return 'Nenhum horário disponível.';
+      console.log("No available times found when formatting time options message");
+      
+      // Get the date display for the current selection
+      const selectedDateObject = availableDates.find(d => d.value === bookingState.selectedDate);
+      const dateDisplay = selectedDateObject ? selectedDateObject.display : bookingState.selectedDate;
+      
+      // Show dates again automatically
+      setTimeout(() => {
+        generateDateOptions();
+        const dateOptionsMsg = formatDateOptionsMessage();
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: 'Por favor, escolha outra data para seu agendamento:\n\n' + dateOptionsMsg 
+        }]);
+        
+        // Mark that we've already handled this date as having no available times
+        // This will help us avoid suggesting it again in the future
+        console.log(`Marking date ${bookingState.selectedDate} as having no available times`);
+      }, 500);
+      
+      return `Não há horários disponíveis para ${dateDisplay}. Todos os horários estão ocupados. Por favor, escolha outra data.`;
     }
     
     // For debugging - log each time entry to see its structure
@@ -258,18 +278,53 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     // to match that behavior and avoid confusion
     const header = 'Escolha um horário digitando diretamente no formato HH:MM:';
     
-    // Simplified approach - just show numbered list of available times
-    // This avoids issues with numbering gaps from filtering
-    const timesToShow = times.map((time, index) => {
-      // Handle both string and object time formats
-      const timeStr = typeof time === 'object' && time.formatted ? time.formatted : String(time);
-      return `${index + 1}. ${timeStr}`;
-    });
+    // Determine if we need to split the display to avoid too long a message
+    const MAX_TIMES_TO_SHOW = 15; // Reasonable number for chat display
     
-    const options = timesToShow.join('\n');
-    const note = 'IMPORTANTE: Digite o horário no formato HH:MM (exemplo: 14:30)\n\nAlguns horários não estão disponíveis devido a outros agendamentos.';
+    // If we have more times than the max, we'll group them by hour
+    let formattedOptions;
     
-    return `${header}\n\n${options}\n\n${note}`;
+    if (times.length > MAX_TIMES_TO_SHOW) {
+      console.log(`Grouping ${times.length} times by hour for more compact display`);
+      
+      // Group times by hour to make display more manageable
+      const timesByHour = {};
+      
+      times.forEach(time => {
+        const timeStr = typeof time === 'object' && time.formatted ? time.formatted : String(time);
+        const hour = timeStr.split(':')[0];
+        if (!timesByHour[hour]) {
+          timesByHour[hour] = [];
+        }
+        timesByHour[hour].push(timeStr);
+      });
+      
+      // Generate summary by hour
+      const hourSummaries = Object.keys(timesByHour).map((hour, index) => {
+        const count = timesByHour[hour].length;
+        const firstTime = timesByHour[hour][0];
+        const lastTime = timesByHour[hour][count - 1];
+        return `${index + 1}. ${hour}h: ${firstTime} - ${lastTime} (${count} opções)`;
+      });
+      
+      formattedOptions = hourSummaries.join('\n');
+      
+      // Change instruction to select an hour first
+      const note = 'IMPORTANTE: Digite o horário completo no formato HH:MM (exemplo: 14:30).\n\nOs horários estão agrupados por hora para facilitar a visualização.';
+      return `${header}\n\n${formattedOptions}\n\n${note}`;
+    } else {
+      // For smaller lists, just show the times directly
+      const timesToShow = times.map((time, index) => {
+        // Handle both string and object time formats
+        const timeStr = typeof time === 'object' && time.formatted ? time.formatted : String(time);
+        return `${index + 1}. ${timeStr}`;
+      });
+      
+      formattedOptions = timesToShow.join('\n');
+      const note = 'IMPORTANTE: Digite o horário no formato HH:MM (exemplo: 14:30)';
+      
+      return `${header}\n\n${formattedOptions}\n\n${note}`;
+    }
   };
   
   // Use the config from the component scope
@@ -411,7 +466,12 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     setAvailableTimes([]);
     
     // Get the day of the week (0 = Sunday, 6 = Saturday)
-    const dayOfWeek = new Date(date).getDay();
+    // Parse the date correctly to get day of week
+    const [year, month, day] = date.split('-').map(Number);
+    const jsDate = new Date(year, month - 1, day); // Month is 0-indexed in JS Date
+    const dayOfWeek = jsDate.getDay();
+    
+    console.log(`Determining hours for ${date}, which is day ${dayOfWeek} (0=Sun, 1=Mon, etc.)`);
     
     // Determine business hours based on day of week
     let businessHours;
@@ -437,10 +497,10 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     }
     
     // Check if it's a specific holiday
-    const jsDate = new Date(date);
-    const day = jsDate.getDate().toString().padStart(2, '0');
-    const month = (jsDate.getMonth() + 1).toString().padStart(2, '0');
-    const dateKey = `${day}/${month}`;
+    // Use the already created jsDate to extract day and month
+    const dayNum = jsDate.getDate().toString().padStart(2, '0');
+    const monthNum = (jsDate.getMonth() + 1).toString().padStart(2, '0');
+    const dateKey = `${dayNum}/${monthNum}`;
     
     const specificHolidays = config?.business?.specificHolidays || ['25/12', '01/01'];
     if (specificHolidays.includes(dateKey)) {
@@ -450,7 +510,7 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     
     // If no business hours defined, the business is closed
     if (!businessHours) {
-      console.log("No business hours defined for", date);
+      console.log(`No business hours defined for ${date} - day of week is ${dayOfWeek}`);
       setAvailableTimes([]);
       return [];
     }
@@ -465,9 +525,10 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
     
     const [startHour, startMinute] = openTime.split(':').map(Number);
     const [endHour, endMinute] = closeTime.split(':').map(Number);
-    // Force 10-minute intervals to reduce the number of options
-    // This is only for generating time slots - actual conflict detection will use service duration
-    const interval = 10;
+    
+    // Use configurable time interval from settings instead of hardcoded value
+    const interval = config?.chatbot?.timeInterval || 
+                    config?.business?.appointmentInterval || 10; // Default to 10 if not configured
     
     // Check if timeSlotCache already has times for this day/worker combo
     const cacheKey = `${workerId}-${date}`;
@@ -1185,87 +1246,24 @@ export default function Chatbox({ onNewAppointment, workers, freeModeAllowed }) 
           });
         } else {
           console.log("No time slots available for", date.display);
-          // Force default times if none are available - just for weekdays
-          const dayOfWeek = new Date(date.value).getDay();
-          
-          if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Monday to Friday
-            // Generate default business hours times using the standard business hours
-            const defaultTimes = [];
-            const businessHours = '07:00-19:00'; // Standard weekday hours
-            const [openTime, closeTime] = businessHours.split('-');
-            const [startHour, startMinute] = openTime.split(':').map(Number);
-            const [endHour, endMinute] = closeTime.split(':').map(Number);
-            // Force 10-minute intervals to reduce the number of options
-    // This is only for generating time slots - actual conflict detection will use service duration
-    const interval = 10;
-            
-            let currentHour = startHour;
-            let currentMinute = startMinute;
-            
-            while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
-              const formattedHour = currentHour.toString().padStart(2, '0');
-              const formattedMinute = currentMinute.toString().padStart(2, '0');
-              defaultTimes.push(`${formattedHour}:${formattedMinute}`);
-              
-              // Move to next time slot
-              currentMinute += interval;
-              if (currentMinute >= 60) {
-                currentHour += 1;
-                currentMinute -= 60;
-              }
+          // Move the flow back to date‐selection
+          setBookingState(prev => ({ ...prev, step: 4 }));
+          // Tell the user to choose another date
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: `Não há horários disponíveis para ${date.display}. Por favor, escolha outra data.`
             }
-            
-            // Set these as available times
-            setAvailableTimes(defaultTimes);
-            
-            // Create a cache key for this worker/date combo
-            const cacheKey = `${bookingState.selectedWorker.worker_id}-${date.value}`;
-            timeSlotCache.current[cacheKey] = defaultTimes;
-            
-            // Show them to the user
-            // Format the default time options
-            const header = 'Escolha um horário digitando o número correspondente:';
-            const options = defaultTimes.map((time, index) => 
-              `${index + 1}. ${time}`
-            ).join('\n');
-            
-            // Replace loading message with time options
-            setMessages(prev => {
-              const updatedMessages = [...prev];
-              updatedMessages[updatedMessages.length - 1] = { 
-                role: 'assistant', 
-                content: question + "\n\n" + header + "\n\n" + options
-              };
-              return updatedMessages;
-            });
-          } else {
-            // Not a weekday, so no times available
-            // No time options available, show the question and go back to date selection
-            setMessages(prev => {
-              const updatedMessages = [...prev];
-              updatedMessages[updatedMessages.length - 1] = { 
-                role: 'assistant', 
-                content: question + "\n\nDesculpe, não há horários disponíveis para este dia. Por favor, selecione outra data."
-              };
-              return updatedMessages;
-            });
-            
-            // Go back to date selection
-            setBookingState(prev => ({
+          ]);
+          // Re‐display the date list
+          setTimeout(() => {
+            const dates = generateDateOptions();
+            setMessages(prev => [
               ...prev,
-              step: 4
-            }));
-            
-            // Show date options again
-            setTimeout(() => {
-              generateDateOptions();
-              const dateOptionsMessage = {
-                role: 'assistant',
-                content: formatDateOptionsMessage()
-              };
-              setMessages(prev => [...prev, dateOptionsMessage]);
-            }, 100);
-          }
+              { role: 'assistant', content: formatDateOptionsMessage() }
+            ]);
+          }, 100);
         }
       } catch (error) {
         console.error("Error generating time options:", error);

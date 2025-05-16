@@ -8,6 +8,7 @@ import { NotificationProvider } from "./components/ui/NotificationContext";
 import LoginPage       from "./pages/LoginPage";
 import AdminPage       from "./pages/AdminPage";        // ← example
 import BookingWidget   from "./pages/BookingWidget";    // ← new share-link page
+import TestDateRange   from "./pages/TestDateRange";    // ← date range test component
 
 function AppInitializer({ children }) {
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function App() {
               {/* normal authenticated app flows                              */}
               <Route path="/admin"     element={<AdminPage   />} />
               <Route path="/"          element={<LoginPage   />} />
+              <Route path="/test-date-range" element={<TestDateRange />} />
               {/* add more routes as needed                                   */}
             </Routes>
           </BrowserRouter>

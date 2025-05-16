@@ -9,16 +9,16 @@ import { chatStyles } from '../styles/chatStyles';
  */
 export function QuickReplyOptions({ 
   step,
-  services,
-  workers,
-  dates,
-  times,
+  services = [],
+  workers = [],
+  dates = [],
+  times = [],
   onServiceSelect,
   onWorkerSelect,
   onDateSelect,
   onTimeSelect,
   onConfirm,
-  loading
+  loading = false
 }) {
   // Don't show options if loading
   if (loading) return null;
@@ -234,10 +234,3 @@ QuickReplyOptions.propTypes = {
   loading: PropTypes.bool
 };
 
-QuickReplyOptions.defaultProps = {
-  services: [],
-  workers: [],
-  dates: [],
-  times: [],
-  loading: false
-};

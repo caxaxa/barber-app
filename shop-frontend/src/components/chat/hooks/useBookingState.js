@@ -223,9 +223,10 @@ export function useBookingState(workers = [], onAppointmentCreated, addAssistant
       case 5: // Time selection
         return handleTimeSelect(text);
         
-      case 6: // Confirmation
+      case 6: { // Confirmation
         const isConfirmed = /^(sim|s|confirmar?|ok|yes)$/i.test(text);
         return handleConfirmation(isConfirmed);
+      }
         
       default:
         // Use the FSM from the booking-fsm package
@@ -251,12 +252,13 @@ export function useBookingState(workers = [], onAppointmentCreated, addAssistant
   // Process selection numbers based on current step
   const processSelectionNumber = useCallback((number, step) => {
     switch (step) {
-      case 2: // Service selection
+      case 2: { // Service selection
         const services = getAvailableServices();
         if (number > 0 && number <= services.length) {
           return handleServiceSelect(services[number - 1]);
         }
         break;
+      }
         
       case 3: // Worker selection
         if (number > 0 && number <= bookingState.workers.length) {

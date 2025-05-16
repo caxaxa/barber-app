@@ -1,6 +1,6 @@
 // src/components/chat/index.js
 // Re-export components for easier imports
-export { default as Chatbox } from './NewChatbox';
+export { default as Chatbox } from './Chatbox';
 
 // Export hooks
 export { useChatState } from './hooks/useChatState';

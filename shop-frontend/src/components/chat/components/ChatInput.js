@@ -8,7 +8,7 @@ import { chatStyles } from '../styles/chatStyles';
 /**
  * Chat input component with text field and send button
  */
-export function ChatInput({ input, loading, onChange, onKeyPress, onSend }) {
+export function ChatInput({ input, loading = false, onChange, onKeyPress, onSend }) {
   return (
     <Box sx={chatStyles.inputContainer}>
       <TextField
@@ -50,6 +50,3 @@ ChatInput.propTypes = {
   onSend: PropTypes.func.isRequired
 };
 
-ChatInput.defaultProps = {
-  loading: false
-};

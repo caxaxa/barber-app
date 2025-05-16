@@ -8,7 +8,7 @@ import { chatStyles } from '../styles/chatStyles';
 /**
  * Message list component that displays all messages in the chat
  */
-export function MessageList({ messages, loading, messagesEndRef, config }) {
+export function MessageList({ messages, loading = false, messagesEndRef, config }) {
   return (
     <Box sx={chatStyles.messageList}>
       {/* Message items */}
@@ -45,6 +45,3 @@ MessageList.propTypes = {
   config: PropTypes.object
 };
 
-MessageList.defaultProps = {
-  loading: false
-};

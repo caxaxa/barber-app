@@ -22,7 +22,9 @@ import {
   CircularProgress
 } from '@mui/material';
 import QrCodeIcon from '@mui/icons-material/QrCode';
-import { useConfig } from '../../../context/ConfigContext';
+import { useConfig } from '../../../context/config';
+// Import shared WhatsApp utilities
+import { normalizePhoneNumber, isPhoneNumberInList } from '../../../shared/utils/whatsappFilters';
 
 export default function WhatsAppConfig() {
   const { config, updateConfig } = useConfig();
@@ -75,8 +77,13 @@ export default function WhatsAppConfig() {
   const handleFilterNumbersChange = (e) => {
     const numbersText = e.target.value;
     // Split by commas, new lines, or spaces and filter out empty strings
-    const numbersArray = numbersText.split(/[,\n\s]+/).filter(n => n.trim());
-    handleWhatsAppChange('filterNumbers', numbersArray);
+    const numbersArray = numbersText.split(/[,\n\s]+/)
+      .filter(n => n.trim())
+      .map(normalizePhoneNumber); // Use the shared utility to normalize numbers
+    
+    // Remove duplicates
+    const uniqueNumbers = [...new Set(numbersArray)];
+    handleWhatsAppChange('filterNumbers', uniqueNumbers);
   };
   
   // Generate a string representation of the filter numbers for the text field
@@ -90,7 +97,8 @@ export default function WhatsAppConfig() {
     setQrCodeError('');
     
     try {
-      const phoneNumber = whatsappConfig.phoneNumber.replace(/\D/g, '');
+      // Use the shared utility to normalize phone number
+      const phoneNumber = normalizePhoneNumber(whatsappConfig.phoneNumber).replace(/\D/g, '');
       if (!phoneNumber) {
         throw new Error('Número de telefone é obrigatório');
       }
@@ -99,12 +107,14 @@ export default function WhatsAppConfig() {
       // This is known to work with the Evolution API
       const instanceName = "teste";
       
-      // Using the Evolution API directly with the provided configuration
-      const evoBaseUrl = 'https://evolution-api-production-ad04.up.railway.app';
-      const evoApiKey = '429683C4C977415CAAFCCE10F7D57E11'; // This would normally be stored in backend
+      // Use environment variables when available, or fall back to defaults
+      const evoBaseUrl = process.env.REACT_APP_EVO_BASE_URL || 'https://evolution-api-production-ad04.up.railway.app';
       
-      // Make API call to generate QR code using the format from the curl command:
-      // curl -H "apikey:$EVO_KEY" "$EVO_BASE/instance/connect/teste?number=$MY_PHONE"
+      // This API key should ideally come from environment variables
+      // Warning: Hardcoded API keys in frontend code can be a security risk
+      const evoApiKey = process.env.REACT_APP_EVO_API_KEY || '429683C4C977415CAAFCCE10F7D57E11';
+      
+      // Make API call to generate QR code
       const response = await fetch(`${evoBaseUrl}/instance/connect/${instanceName}?number=${phoneNumber}`, {
         method: 'GET',
         headers: {
@@ -113,34 +123,33 @@ export default function WhatsAppConfig() {
       });
       
       if (!response.ok) {
-        throw new Error(`Evolution API responded with status ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Evolution API responded with status ${response.status}: ${errorText}`);
       }
       
       const data = await response.json();
       
-      console.log("Evolution API response:", data);
+      // Extract QR code from response (handling different response formats)
+      let qrCode = null;
       
-      // The API returns the qr string directly in the response
-      if (data.qrcode && data.qrcode.base64) {
-        // Set QR code from base64 data provided by Evolution API
-        setQrCodeURL(data.qrcode.base64);
-        setQrDialogOpen(true);
-        
-        // Save the instance name for future reference
-        handleWhatsAppChange('instanceName', instanceName);
+      if (data.qrcode?.base64) {
+        qrCode = data.qrcode.base64;
       } else if (data.qrcode) {
-        // Just in case it's provided in a different format
-        setQrCodeURL(data.qrcode);
-        setQrDialogOpen(true);
-        handleWhatsAppChange('instanceName', instanceName);
+        qrCode = data.qrcode;
       } else if (data.base64) {
-        // Original expected format
-        setQrCodeURL(data.base64);
-        setQrDialogOpen(true);
-        handleWhatsAppChange('instanceName', instanceName);
-      } else {
+        qrCode = data.base64;
+      }
+      
+      if (!qrCode) {
         throw new Error('QR code not found in response');
       }
+      
+      // Update state with QR code and open dialog
+      setQrCodeURL(qrCode);
+      setQrDialogOpen(true);
+      
+      // Save the instance name for future reference
+      handleWhatsAppChange('instanceName', instanceName);
     } catch (error) {
       console.error('Error generating QR code:', error);
       setQrCodeError(`Falha ao gerar o QR code: ${error.message}`);

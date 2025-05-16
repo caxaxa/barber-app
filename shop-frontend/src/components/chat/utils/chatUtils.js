@@ -76,7 +76,7 @@ export function formatTimeOptionsMessage(times) {
  */
 export function isSelectionMessage(text) {
   // Check if the message is just a number or starts with a number followed by a period or dash
-  return /^\d+$/.test(text) || /^\d+[\.\)]/.test(text);
+  return /^\d+$/.test(text) || /^\d+[.)]/.test(text);
 }
 
 /**
@@ -89,7 +89,7 @@ export function extractSelectionNumber(text) {
     return parseInt(text, 10);
   }
   
-  const match = text.match(/^(\d+)[\.\)]/);
+  const match = text.match(/^(\d+)[.)]/);
   if (match) {
     return parseInt(match[1], 10);
   }
