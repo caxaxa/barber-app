@@ -1,0 +1,17 @@
+{
+  "name": "@barber-app/booking-fsm",
+  "version": "0.1.0",
+  "main": "dist/booking_fsm.js",
+  "types": "dist/booking_fsm.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "license": "MIT",
+  "description": "",
+  "keywords": [],
+  "author": "",
+  "type": "commonjs",
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

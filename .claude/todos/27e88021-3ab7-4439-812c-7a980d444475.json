@@ -1,0 +1,68 @@
+[
+  {
+    "content": "Update WhatsApp webhook code to fix Evolution API integration",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Fix instance name extraction in webhook handler",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Normalize phone number format",
+    "status": "completed",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Update message sending code with correct URL structure",
+    "status": "completed",
+    "priority": "high",
+    "id": "4"
+  },
+  {
+    "content": "Deploy changes to AWS",
+    "status": "in_progress",
+    "priority": "medium",
+    "id": "5"
+  },
+  {
+    "content": "Fix SAM build issues",
+    "status": "in_progress",
+    "priority": "high",
+    "id": "6"
+  },
+  {
+    "content": "Move shared files to the correct CodeUri location",
+    "status": "completed",
+    "priority": "high",
+    "id": "7"
+  },
+  {
+    "content": "Add Ignore directive to SAM template",
+    "status": "completed",
+    "priority": "high",
+    "id": "8"
+  },
+  {
+    "content": "Move shared folder to project root",
+    "status": "completed",
+    "priority": "high",
+    "id": "9"
+  },
+  {
+    "content": "Create copy in SAM build directory",
+    "status": "completed",
+    "priority": "high",
+    "id": "10"
+  },
+  {
+    "content": "Replace symlink with actual file in shop-backend",
+    "status": "completed",
+    "priority": "high",
+    "id": "11"
+  }
+]

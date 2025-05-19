@@ -378,7 +378,7 @@ export async function getWhatsAppWebhookConfig() {
  * @param {string} webhookUrl - The webhook URL to configure
  * @returns {Promise<Object>} - Initialization result
  */
-export async function initializeWhatsAppIntegration(webhookUrl = 'https://yrkr81hodi.execute-api.us-east-2.amazonaws.com/Prod/whatsapp-in') {
+export async function initializeWhatsAppIntegration(webhookUrl = 'https://is8ccrbye3.execute-api.us-east-2.amazonaws.com/Prod/whatsapp-in') {
   try {
     console.log('Initializing WhatsApp integration...');
     
@@ -388,12 +388,11 @@ export async function initializeWhatsAppIntegration(webhookUrl = 'https://yrkr81
       console.warn('WhatsApp is not connected. Please check the connection in the Evolution API dashboard.');
     }
     
-    // 2. Configure webhook with required events in uppercase format
+    // 2. Configure webhook with required events in correct Evolution API format
     const events = [
       'MESSAGES_UPSERT',      // New messages
       'MESSAGES_UPDATE',      // Message updates
       'CONNECTION_UPDATE',    // Connection status
-      'SEND_MESSAGE',         // Messages sent by us
       'QRCODE_UPDATED'        // QR code updates
     ];
     

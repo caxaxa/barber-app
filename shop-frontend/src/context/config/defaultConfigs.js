@@ -50,7 +50,7 @@ export const defaultConfig = {
       provider: 'evolution-api',
       apiKey: '429683C4C977415CAAFCCE10F7D57E11',
       filterMode: 'whitelist',
-      filterNumbers: ['+14155238886', '+556796996672'],  // Include Twilio test number and your number
+      filterNumbers: ['+14155238886', '+556796996672', '+556781229196'],  // Include Twilio test number and test numbers
       disableGroups: true,
       adIntegration: {
         enabled: false,

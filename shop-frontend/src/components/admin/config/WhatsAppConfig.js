@@ -65,9 +65,9 @@ export default function WhatsAppConfig() {
     phoneNumber: '',
     instanceName: 'teste', // Default to 'teste' since that's currently configured
     filterMode: 'whitelist', // 'whitelist' or 'blacklist'
-    filterNumbers: ['+14155238886'], // Explicitly whitelist the Twilio test number
+    filterNumbers: ['+14155238886', '+556781229196'], // Explicitly whitelist test numbers
     disableGroups: true,
-    webhookUrl: 'https://yrkr81hodi.execute-api.us-east-2.amazonaws.com/Prod/whatsapp-in',
+    webhookUrl: 'https://is8ccrbye3.execute-api.us-east-2.amazonaws.com/Prod/whatsapp-in',
     adIntegration: {
       enabled: false,
       campaignId: ''
@@ -183,12 +183,12 @@ export default function WhatsAppConfig() {
       // Save webhook URL in config
       handleWhatsAppChange('webhookUrl', webhookUrl);
       
-      // Events to monitor
+      // Events to monitor - use correct format for Evolution API
       const events = [
-        'messages.upsert',
-        'messages.update',
-        'connection.update',
-        'status.instance'
+        'MESSAGES_UPSERT',
+        'MESSAGES_UPDATE',
+        'CONNECTION_UPDATE',
+        'QRCODE_UPDATED'
       ];
       
       const result = await configureWhatsAppWebhook(webhookUrl, events);
